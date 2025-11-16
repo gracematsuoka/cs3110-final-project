@@ -3,9 +3,28 @@ let validate_coord (r, c) player : bool * string * Initialize.grid_state =
     ( false,
       "Coordinates are out of bounds (each input can only be from 0 to 9)",
       Initialize.EMPTY )
-  else (true, "", Initialize.SHIP)
-(* if player = 0 then let state = Array.get (List.nth Initialize.board_list 1) c
-   in if state = EMPTY *)
+  else
+    let attack_board =
+      List.nth Initialize.board_list (if player = 0 then 1 else 0)
+    in
+    let ship_list_upd : Initialize.ship list =
+      if player = 0 then Initialize.ship_list1_upd
+      else Initialize.ship_list0_upd
+    in
+    let state = Array.get (Array.get attack_board c) r in
+    if state <> Initialize.EMPTY then
+      ( false,
+        "Enter a coordinate that has not already been entered",
+        Initialize.EMPTY )
+    else
+      let target_ship_opt =
+        List.find_opt
+          (fun s -> Initialize.CoordSet.mem (r, c) s.coords)
+          ship_list_upd
+      in
+      match target_ship_opt with
+      | None -> (true, "", Initialize.EMPTY)
+      | Some _ -> (true, "", Initialize.SHIP)
 
 (** [update_board (r,c) player hit_type] changes board of [player] at
     coordinates [(r,c)] to [hit_type]. *)
