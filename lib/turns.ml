@@ -1,3 +1,5 @@
+(** [validate_coord] checks if coordinate [(r,c)] is a valid coordinate that
+    [player] entered *)
 let validate_coord (r, c) player :
     bool * string * Initialize.grid_state * Initialize.ship =
   let empty_ship : Initialize.ship =
@@ -46,8 +48,8 @@ let update_boards (r, c) (player : int) (hit_type : Initialize.grid_state) =
   let personal_row = other_personal_board.(r) in
   personal_row.(c) <- hit_type
 
-(* removes coordinate and returns if ship was hit or sunk and the ship that was
-   hit *)
+(** [remove_coord] removes coordinate [(r,c)] from the list of coordinates of
+    [ship] *)
 let remove_coord (r, c) (ship : Initialize.ship) :
     Initialize.grid_state * string =
   ship.coords <- Initialize.CoordSet.remove (r, c) ship.coords;
@@ -64,8 +66,11 @@ let change_to_sink (ship_name : string) (ship_list_og : Initialize.ship list)
     (fun (r, c) -> update_boards (r, c) player Initialize.SINK)
     coords
 
+(** [check_win] checks if all coords in [ship_coords] are empty *)
 let check_win (ship_coords : Initialize.ship list) : bool =
-  failwith "Unimplemented"
+  List.for_all
+    (fun (s : Initialize.ship) -> Initialize.CoordSet.is_empty s.coords)
+    ship_coords
 
 let handle_turn (r, c) (player : int) =
   let other_player, ship_list_upd, ship_list_og =
@@ -78,7 +83,7 @@ let handle_turn (r, c) (player : int) =
   | false, error, _, _ -> (error, player)
   | true, _, state, ship ->
       if state = Initialize.SHIP then begin
-        let hit_or_sink, ship_hit = remove_coord (r, c) ship in
+        let hit_or_sink, ship_hit_name = remove_coord (r, c) ship in
         if hit_or_sink = Initialize.HIT then begin
           update_boards (r, c) player Initialize.HIT;
           ("Hit! Go again.", player)
