@@ -5,3 +5,10 @@ type ship = {
   coords : (int * int) list;  (** List of (row, col) cells occupied. *)
 }
 (** A ship with a name and its occupied coordinates. *)
+
+type grid_state =
+  | EMPTY
+  | SHIP
+  | HIT
+  | MISS
+  | SINK
