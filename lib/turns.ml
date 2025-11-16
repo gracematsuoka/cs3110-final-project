@@ -27,9 +27,15 @@ let remove_coord (r, c) (ship_coords : Initialize.ship list) :
     Initialize.grid_state * Initialize.ship =
   failwith "Unimplemented"
 
-let change_to_sink (ship : Initialize.ship)
-    (ship_list_og : Initialize.ship list) : unit =
-  failwith "Unimplemented"
+let change_to_sink (ship_name : string) (ship_list_og : Initialize.ship list)
+    (player : int) : unit =
+  let ship =
+    List.find (fun (s : Initialize.ship) -> s.name = ship_name) ship_list_og
+  in
+  let coords = ship.coords in
+  Initialize.CoordSet.iter
+    (fun (r, c) -> update_boards (r, c) player Initialize.SINK)
+    coords
 
 let check_win (ship_coords : Initialize.ship list) : bool =
   failwith "Unimplemented"
@@ -51,7 +57,7 @@ let handle_turn (r, c) (player : int) =
           ("Hit! Go again.", player)
         end
         else begin
-          change_to_sink ship_hit ship_list_og;
+          change_to_sink ship_hit_name ship_list_og player;
           if check_win ship_list_upd = true then
             (Printf.sprintf "Player %s wins!" (string_of_int player), player + 3)
           else ("You sank a ship! Go again.", player)
