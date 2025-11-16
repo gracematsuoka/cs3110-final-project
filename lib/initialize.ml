@@ -7,7 +7,7 @@ end
 module CoordSet = Set.Make (Coord)
 
 type ship = {
-  name : string;
+  name : string;  (** Ship name: "0a"…"0e" or "1a"…"1e". *)
   mutable coords : CoordSet.t;
 }
 
@@ -18,6 +18,8 @@ type grid_state =
   | MISS
   | SINK
 
-let ship_list0 : ship list = [ { name = "0a"; coords = CoordSet.empty } ]
-let ship_list1 : ship list = [ { name = "0a"; coords = CoordSet.empty } ]
+let ship_list0_upd : ship list = [ { name = "0a"; coords = CoordSet.empty } ]
+let ship_list1_upd : ship list = [ { name = "0a"; coords = CoordSet.empty } ]
+let ship_list0_og : ship list = [ { name = "0a"; coords = CoordSet.empty } ]
+let ship_list1_og : ship list = [ { name = "0a"; coords = CoordSet.empty } ]
 let board_list : grid_state array array list = []

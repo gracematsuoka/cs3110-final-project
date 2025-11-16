@@ -7,8 +7,9 @@ let validate_coord (r, c) player : bool * string * Initialize.grid_state =
     let attack_board =
       List.nth Initialize.board_list (if player = 0 then 1 else 0)
     in
-    let ship_list_upd =
-      if player = 0 then Initialize.ship_list1 else Initialize.ship_list0
+    let ship_list_upd : Initialize.ship list =
+      if player = 0 then Initialize.ship_list1_upd
+      else Initialize.ship_list0_upd
     in
     let state = Array.get (Array.get attack_board c) r in
     if state <> Initialize.EMPTY then
@@ -16,13 +17,14 @@ let validate_coord (r, c) player : bool * string * Initialize.grid_state =
         "Enter a coordinate that has not already been entered",
         Initialize.EMPTY )
     else
-      let is_ship =
-        List.exists
+      let target_ship_opt =
+        List.find_opt
           (fun s -> Initialize.CoordSet.mem (r, c) s.coords)
           ship_list_upd
       in
-      (* CHECK IF SUNK SHIP *)
-      if is_ship then (true, "", Initialize.HIT) else (true, "", Initialize.MISS)
+      match target_ship_opt with
+      | None -> (true, "", Initialize.EMPTY)
+      | Some _ -> (true, "", Initialize.SHIP)
 
 (** [update_board (r,c) player hit_type] changes board of [player] at
     coordinates [(r,c)] to [hit_type]. *)
