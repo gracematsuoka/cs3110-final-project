@@ -22,11 +22,17 @@ type ship = {
 }
 (** A ship with a name and its occupied coordinates. *)
 
-val ship_list0 : ship list
-(** list of 5 ships for player0 *)
+val ship_list0_upd : ship list
+(** list of 5 ships for player0, coordinates update with hits *)
 
-val ship_list1 : ship list
-(** list of 5 ships for player1 *)
+val ship_list1_upd : ship list
+(** list of 5 ships for player1, coordinates update with hits *)
+
+val ship_list0_og : ship list
+(** list of 5 ships for player0, does not change *)
+
+val ship_list1_og : ship list
+(** list of 5 ships for player1, does not change *)
 
 val board_list : grid_state array array list
 (** list of boards board_list[0] is player0 personal board; board_list[1] is
