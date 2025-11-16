@@ -1,8 +1,13 @@
-let validate_coord (r, c) player : bool * string * Initialize.grid_state =
+let validate_coord (r, c) player :
+    bool * string * Initialize.grid_state * Initialize.ship =
+  let empty_ship : Initialize.ship =
+    { name = ""; coords = Initialize.CoordSet.empty }
+  in
   if r > 9 || c > 9 || r < 0 || c < 0 then
     ( false,
       "Coordinates are out of bounds (each input can only be from 0 to 9)",
-      Initialize.EMPTY )
+      Initialize.EMPTY,
+      empty_ship )
   else
     let attack_board =
       List.nth Initialize.board_list (if player = 0 then 1 else 0)
@@ -15,16 +20,17 @@ let validate_coord (r, c) player : bool * string * Initialize.grid_state =
     if state <> Initialize.EMPTY then
       ( false,
         "Enter a coordinate that has not already been entered",
-        Initialize.EMPTY )
+        Initialize.EMPTY,
+        empty_ship )
     else
       let target_ship_opt =
         List.find_opt
-          (fun s -> Initialize.CoordSet.mem (r, c) s.coords)
+          (fun (s : Initialize.ship) -> Initialize.CoordSet.mem (r, c) s.coords)
           ship_list_upd
       in
       match target_ship_opt with
-      | None -> (true, "", Initialize.EMPTY)
-      | Some _ -> (true, "", Initialize.SHIP)
+      | None -> (true, "", Initialize.EMPTY, empty_ship)
+      | Some ship -> (true, "", Initialize.SHIP, ship)
 
 (** [update_board (r,c) player hit_type] changes board of [player] at
     coordinates [(r,c)] to [hit_type]. *)
@@ -42,9 +48,11 @@ let update_boards (r, c) (player : int) (hit_type : Initialize.grid_state) =
 
 (* removes coordinate and returns if ship was hit or sunk and the ship that was
    hit *)
-let remove_coord (r, c) (ship_coords : Initialize.ship list) :
-    Initialize.grid_state * Initialize.ship =
-  failwith "Unimplemented"
+let remove_coord (r, c) (ship : Initialize.ship) :
+    Initialize.grid_state * string =
+  ship.coords <- Initialize.CoordSet.remove (r, c) ship.coords;
+  if Initialize.CoordSet.is_empty ship.coords then (Initialize.SINK, ship.name)
+  else (Initialize.HIT, ship.name)
 
 let change_to_sink (ship : Initialize.ship)
     (ship_list_og : Initialize.ship list) : unit =
@@ -61,10 +69,10 @@ let handle_turn (r, c) (player : int) =
     | _ -> failwith "impossible player?"
   in
   match validate_coord (r, c) player with
-  | false, error, _ -> (error, player)
-  | true, _, state ->
+  | false, error, _, _ -> (error, player)
+  | true, _, state, ship ->
       if state = Initialize.SHIP then begin
-        let hit_or_sink, ship_hit = remove_coord (r, c) ship_list_upd in
+        let hit_or_sink, ship_hit = remove_coord (r, c) ship in
         if hit_or_sink = Initialize.HIT then begin
           update_boards (r, c) player Initialize.HIT;
           ("Hit! Go again.", player)
