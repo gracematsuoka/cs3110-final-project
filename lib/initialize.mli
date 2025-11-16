@@ -1,11 +1,6 @@
 (* Initialize Interface *)
 
-type ship = {
-  name : string;  (** Ship name: "0a"…"0e" or "1a"…"1e". *)
-  mutable coords : (int * int) list;  (** List of (row, col) cells occupied. *)
-}
-(** A ship with a name and its occupied coordinates. *)
-
+(** for each element of a board *)
 type grid_state =
   | EMPTY
   | SHIP
@@ -13,8 +8,23 @@ type grid_state =
   | MISS
   | SINK
 
+module Coord : sig
+  type t = int * int
+
+  val compare : t -> t -> int
+end
+
+module CoordSet : Set.S with type elt = Coord.t
+
+type ship = {
+  name : string;  (** Ship name: "0a"…"0e" or "1a"…"1e". *)
+  mutable coords : CoordSet.t;
+}
+(** A ship with a name and its occupied coordinates. *)
+
 val ship_list0 : ship list
 (** list of 5 ships for player0 *)
+
 val ship_list1 : ship list
 (** list of 5 ships for player1 *)
 
