@@ -32,14 +32,22 @@ let validate_coord (r, c) player :
       | None -> (true, "", Initialize.EMPTY, empty_ship)
       | Some ship -> (true, "", Initialize.SHIP, ship)
 
-(** [update_board (r,c) player hit_type] changes board of [player] at
-    coordinates [(r,c)] to [hit_type]. *)
+(** [update_boards (r,c) player hit_type] updates the attack board ot [player]
+    and the personal board of the other player. For both boards, the grid_state
+    at index [(r,c)] is updated to [hit_type]. Requires that [player] is 0 or 1
+    and [hit_type] is MISS, HIT, or SINK. *)
 let update_boards (r, c) (player : int) (hit_type : Initialize.grid_state) =
+  if
+    hit_type <> Initialize.MISS
+    || hit_type <> Initialize.HIT
+    || hit_type <> Initialize.SINK
+  then invalid_arg "update_boards: hit_type must be MISS, HIT, or SINK";
+
   let my_attack_board, other_personal_board =
     match player with
     | 0 -> (List.nth Initialize.board_list 1, List.nth Initialize.board_list 2)
     | 1 -> (List.nth Initialize.board_list 3, List.nth Initialize.board_list 0)
-    | _ -> failwith "not possible?"
+    | _ -> invalid_arg "update_boards: player must be 0 or 1"
   in
   let attack_row = my_attack_board.(r) in
   attack_row.(c) <- hit_type;
@@ -54,6 +62,10 @@ let remove_coord (r, c) (ship : Initialize.ship) :
   if Initialize.CoordSet.is_empty ship.coords then (Initialize.SINK, ship.name)
   else (Initialize.HIT, ship.name)
 
+(** [change_to_sink ship_name ship_list_og player] changes all HITs to SINKs for
+    ship with [ship_name] in [player]'s attack board and other player's personal
+    board. Throws [Not_found] if [ship_name] is not the name of a ship in
+    [ship_list_og]. *)
 let change_to_sink (ship_name : string) (ship_list_og : Initialize.ship list)
     (player : int) : unit =
   let ship =
@@ -67,6 +79,19 @@ let change_to_sink (ship_name : string) (ship_list_og : Initialize.ship list)
 let check_win (ship_coords : Initialize.ship list) : bool =
   failwith "Unimplemented"
 
+(** [handle_turn (r,c) player] processes a move where [player] attacks
+    coordinate [(r,c)].
+
+    - If [(r,c)] is out of bounds or has already been attacked, the move is
+      invalid and [player] goes again.
+    - If [(r,c)] is EMPTY on the other player's personal board, the attack is a
+      MISS and the other player goes next.
+    - If [(r,c)] is SHIP on other player's personal board, the attack is a HIT
+      or a SINK: if the other player still has remaining ships, [player] foes
+      again; if the other player has no ships left, [player] wins.
+
+    Requires [player] is 0 or 1. Returns message describing result of attack and
+    and next player who should take a turn.*)
 let handle_turn (r, c) (player : int) =
   let other_player, ship_list_upd, ship_list_og =
     match player with
@@ -85,7 +110,7 @@ let handle_turn (r, c) (player : int) =
         end
         else begin
           change_to_sink ship_hit_name ship_list_og player;
-          if check_win ship_list_upd = true then
+          if check_win ship_list_upd then
             (Printf.sprintf "Player %s wins!" (string_of_int player), player + 3)
           else ("You sank a ship! Go again.", player)
         end
