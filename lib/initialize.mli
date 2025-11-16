@@ -12,3 +12,8 @@ type grid_state =
   | HIT
   | MISS
   | SINK
+
+val board_list : grid_state array array list
+(** list of boards board_list[0] is player0 personal board; board_list[1] is
+    player0 attack board; board_list[2] is player1 personal board; board_list[3]
+    is player1 attack board *)
