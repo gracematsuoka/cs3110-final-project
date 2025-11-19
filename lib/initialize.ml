@@ -40,29 +40,29 @@ let in_bounds (r, c) =
 let validate_ship_coordinate coords =
   coords <> [] &&
   List.for_all in_bounds coords
-
 (* Creates an empty ship list *)
-let build_ship_list player =
+
+let build_ship_list prefix =
   let names =
-    List.map (fun c -> Printf.sprintf "%d%c" player c)
+    List.map (fun c -> Printf.sprintf "%d%c" prefix c)
       [ 'a'; 'b'; 'c'; 'd'; 'e' ]
   in
   List.map (fun n -> { name = n; coords = CoordSet.empty }) names
 
 let place_ship board ship coords =
   if not (validate_ship_coordinate coords) then
-    failwith ("Invalid coordinates for ship " ^ ship.name);
+    failwith ("Invalid coordinates for ship" ^ ship.name);
   List.iter
     (fun (r, c) ->
       board.(r).(c) <- SHIP)
     coords;
   ship.coords <- List.fold_left (fun set xy -> CoordSet.add xy set) CoordSet.empty coords
 
-let ship_list0_upd = build_ship_list 0
-let ship_list1_upd = build_ship_list 1
+let ship_list0_upd = ref (build_ship_list 0)
+let ship_list1_upd = ref (build_ship_list 1)
 
-let ship_list0_og = build_ship_list 0
-let ship_list1_og = build_ship_list 1
+let ship_list0_og = ref (build_ship_list 0)
+let ship_list1_og = ref (build_ship_list 1)
 
 let board_list =
   [
