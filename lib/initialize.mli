@@ -36,17 +36,15 @@ val ship_list1_og : ship list
 (** list of 5 ships for player1, not linked to any part of ship_list0_upd and
     will not change *)
 
-val in_bounds : (int * int) -> bool
-(** checks if a coordinate is within the 10x10 grid bounds *)
-
 val initialize_grid : unit -> grid_state array array
-(** initializes a 10x10 grid with all EMPTY values *)
+(** initializes an empty grid *)
 
 val validate_ship_coordinate :
-  grid_state array array -> (int * int) list -> bool
-(** checks if the ship coordinates are valid (in bounds and not overlapping) *)
+  (int * int) list -> bool
+(** validates that the given coordinates are within bounds and in a straight line*)
+val place_ship: grid_state array array -> ship -> (int * int) list -> unit
+(* places a ship on the board *)
 
-val place_ship: grid_state array array -> ship -> (int * int) list -> bool
 val board_list : grid_state array array list
 (** list of boards board_list[0] is player0 personal board; board_list[1] is
     player0 attack board; board_list[2] is player1 personal board; board_list[3]
