@@ -28,41 +28,36 @@ let grid_size = 10
 
 (* Creates empty 10x10 grid. *)
 let initialize_grid () =
-  Array.init grid_size (fun _ ->
-      Array.init grid_size (fun _ -> EMPTY))
-
+  Array.init grid_size (fun _ -> Array.init grid_size (fun _ -> EMPTY))
 
 (* Builds 5 ships for a given player. *)
 
-let in_bounds (r, c) =
-  r >= 0 && r < 10 && c >= 0 && c < 10
+let in_bounds (r, c) = r >= 0 && r < 10 && c >= 0 && c < 10
 
-let validate_ship_coordinate coords =
-  coords <> [] &&
-  List.for_all in_bounds coords
+(* TODO: validate if there's another ship already placed on the grid here*)
+let validate_ship_coordinate grid coords =
+  coords <> [] && List.for_all in_bounds coords
 
-(* Creates an empty ship list *)
+(* Creates an empty ship list ref*)
 let build_ship_list player =
   let names =
-    List.map (fun c -> Printf.sprintf "%d%c" player c)
+    List.map
+      (fun c -> Printf.sprintf "%d%c" player c)
       [ 'a'; 'b'; 'c'; 'd'; 'e' ]
   in
   List.map (fun n -> { name = n; coords = CoordSet.empty }) names
 
 let place_ship board ship coords =
-  if not (validate_ship_coordinate coords) then
+  if not (validate_ship_coordinate board coords) then
     failwith ("Invalid coordinates for ship " ^ ship.name);
-  List.iter
-    (fun (r, c) ->
-      board.(r).(c) <- SHIP)
-    coords;
-  ship.coords <- List.fold_left (fun set xy -> CoordSet.add xy set) CoordSet.empty coords
-
-let ship_list0_upd = build_ship_list 0
-let ship_list1_upd = build_ship_list 1
+  List.iter (fun (r, c) -> board.(r).(c) <- SHIP) coords;
+  ship.coords <-
+    List.fold_left (fun set xy -> CoordSet.add xy set) CoordSet.empty coords
 
 let ship_list0_og = build_ship_list 0
 let ship_list1_og = build_ship_list 1
+let ship_list0_upd = ref ship_list0_og
+let ship_list1_upd = ref ship_list1_og
 
 let board_list =
   [

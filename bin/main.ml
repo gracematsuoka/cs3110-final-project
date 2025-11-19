@@ -1,156 +1,264 @@
 open Gtk
+open Cs3110_final_project.Initialize
 
-let () =
-  let _ = GMain.init () in
+let emoji_of_cell = function
+  | EMPTY -> "🌊"
+  | SHIP -> "🚢"
+  | HIT -> "💥"
+  | MISS -> "❌"
+  | SINK -> "☠️"
 
-  (* Main window *)
-  let window =
-    GWindow.window ~title:"Battleship" ~border_width:10 ~width:900 ~height:600
-      ()
-  in
-  ignore (window#connect#destroy ~callback:GMain.quit);
+let print_board board =
+  let nrows = Array.length board in
+  let ncols = Array.length board.(0) in
 
-  (* Horizontal box to hold two tables *)
-  let hbox = GPack.hbox ~spacing:20 ~packing:window#add () in
-
-  (* Create left table *)
-  let left_table =
-    GPack.table ~rows:10 ~columns:10 ~homogeneous:true
-      ~packing:(fun w -> hbox#pack ~expand:true ~fill:true w)
-      ()
-  in
-
-  (* Create right table *)
-  let right_table =
-    GPack.table ~rows:10 ~columns:10 ~homogeneous:true
-      ~packing:(fun w -> hbox#pack ~expand:true ~fill:true w)
-      ()
-  in
-
-  (* Fill left table with blank buttons *)
-  for row = 0 to 9 do
-    for col = 0 to 9 do
-      ignore
-        (GButton.button ~label:""
-           ~packing:(fun w ->
-             left_table#attach ~left:col ~top:row ~expand:`BOTH ~fill:`BOTH w)
-           ())
-    done
+  (* print column headers *)
+  Printf.printf "    ";
+  for j = 0 to ncols - 1 do
+    Printf.printf "%d  " j
   done;
+  print_newline ();
 
-  (* Fill right table with blank buttons *)
-  for row = 0 to 9 do
-    for col = 0 to 9 do
-      ignore
-        (GButton.button ~label:""
-           ~packing:(fun w ->
-             right_table#attach ~left:col ~top:row ~expand:`BOTH ~fill:`BOTH w)
-           ())
-    done
+  (* print each row with a row label *)
+  for i = 0 to nrows - 1 do
+    Printf.printf "%2d  " i;
+    for j = 0 to ncols - 1 do
+      Printf.printf "%s " (emoji_of_cell board.(i).(j))
+    done;
+    print_newline ()
   done;
+  print_newline ()
 
-  window#show ();
-  GMain.main ()
+let board_list : grid_state array array list =
+  Cs3110_final_project.Initialize.board_list
 
-(* open Cs3110_final_project.Initialize
+let counter = ref 0
+let client_output_channels : Lwt_io.output_channel list ref = ref []
+let ship_sizes = [ 5; 4; 4; 3; 2; 1 ]
+let ship_names = [ 'a'; 'b'; 'c'; 'd'; 'e' ]
+let client_usernames : string list ref = ref []
+let turn = ref 0
 
-   let player0personal = [| [| EMPTY; EMPTY |]; [| EMPTY; EMPTY |] |] let
-   player0attack = [| [| EMPTY; EMPTY |]; [| EMPTY; EMPTY |] |] let
-   player1personal = [| [| EMPTY; EMPTY |]; [| EMPTY; EMPTY |] |] let
-   player1attack = [| [| EMPTY; EMPTY |]; [| EMPTY; EMPTY |] |]
+(** [fatal_error msg] will print an error message [msg] and then end the
+    execution *)
+let fatal_error msg =
+  prerr_endline msg;
+  exit 1
 
-   let board_list : grid_state array array list = [ player0personal;
-   player0attack; player1personal; player1attack ]
+let localhost ip port =
+  try Unix.ADDR_INET (Unix.inet_addr_of_string ip, port)
+  with Failure _ | Invalid_argument _ ->
+    fatal_error ("Invalid IP address: " ^ ip)
 
-   let localhost_5000 = Unix.ADDR_INET (Unix.inet_addr_loopback, 5000) let
-   counter = ref 0 let client_output_channels : Lwt_io.output_channel list ref =
-   ref [] let turn = ref 0
+(** [add_IP_and_port where] builds a Unix address for [where]*)
+let add_IP_and_port where =
+  if Array.length Sys.argv < 4 then
+    fatal_error ("Please enter the IP address and port for the " ^ where ^ ".");
+  let ip = Sys.argv.(2) in
+  let port =
+    try int_of_string Sys.argv.(3)
+    with Failure _ ->
+      fatal_error "Invalid port number. Please provide an integer."
+  in
+  localhost ip port
 
-   (** [string_of_addr addr] converts a Unix address into a string *) let
-   string_of_addr = function | Unix.ADDR_UNIX s -> s | ADDR_INET (ip, port) ->
-   Printf.sprintf "%s:%d" (Unix.string_of_inet_addr ip) port
+(** [string_of_addr addr] converts a Unix address into a string *)
+let string_of_addr = function
+  | Unix.ADDR_UNIX s -> s
+  | ADDR_INET (ip, port) ->
+      Printf.sprintf "%s:%d" (Unix.string_of_inet_addr ip) port
 
-   (** [fatal_error msg] will print an error message [msg] and then end the
-   execution *) let fatal_error msg = prerr_endline msg; exit 1
+(** [parse_client_username] will parse the username argument of a client *)
+let parse_client_username () =
+  if Array.length Sys.argv <> 5 then fatal_error "Please enter a username.";
+  if String.starts_with ~prefix:"\"" Sys.argv.(4) then
+    String.sub Sys.argv.(4) 1 (String.length Sys.argv.(4) - 2)
+  else Sys.argv.(4)
 
-   (** [parse_client_username] will parse the username argument of a client *)
-   let parse_client_username () = if Array.length Sys.argv <> 3 then fatal_error
-   "Please enter a username."; if String.starts_with ~prefix:"\"" Sys.argv.(1)
-   then String.sub Sys.argv.(2) 1 (String.length Sys.argv.(2) - 2) else
-   Sys.argv.(2)
+(** [notify_all message output_channel] will notify all the clients [message]*)
+let notify_all message output_channel =
+  let%lwt () = Lwt_io.fprintlf output_channel "%s" message in
+  let%lwt () = Lwt_io.flush output_channel in
+  Lwt.return ()
 
-   (** [notify_all message output_channel] will notify all the clients
-   [message]*) let notify_all message output_channel = let%lwt () =
-   Lwt_io.fprintlf output_channel "%s" message in let%lwt () = Lwt_io.flush
-   output_channel in Lwt.return ()
+(** [verify_coord str] will verify if the [str] are 2 integers *)
+let verify_coord (str : string) : (int * int) option =
+  let trimmed = String.trim str in
+  let parts =
+    trimmed |> String.split_on_char ' '
+    |> List.filter (fun s -> String.length (String.trim s) > 0)
+  in
+  match parts with
+  | [ a; b ] -> (
+      match (int_of_string_opt a, int_of_string_opt b) with
+      | Some x, Some y -> Some (x, y)
+      | _ -> None)
+  | _ -> None
 
-   let rec read_print_n_lines n output_channel = if n = 0 then Lwt.return ()
-   else let%lwt line = Lwt_io.read_line output_channel in let%lwt () =
-   Lwt_io.printlf "%s" line in read_print_n_lines (n - 1) output_channel
+let client_handler client_addr (client_in, client_out) : unit Lwt.t =
+  (* connecting to the client *)
+  let address_string = string_of_addr client_addr in
+  let%lwt client_username = Lwt_io.read_line client_in in
+  let%lwt () =
+    Lwt_io.printlf "I got a connection from %s (%s)." address_string
+      client_username
+  in
 
-   let client_handler client_addr (client_in, client_out) : unit Lwt.t = (*
-   connecting to the client *) let address_string = string_of_addr client_addr
-   in let%lwt client_username = Lwt_io.read_line client_in in let%lwt () =
-   Lwt_io.printlf "I got a connection from %s (%s)." address_string
-   client_username in
+  (* notifying everyone of the connection *)
+  let%lwt () = Lwt_io.fprintf client_out "You joined the game\n" in
+  let%lwt () = Lwt_io.flush client_out in
+  let%lwt () =
+    Lwt_list.iter_p
+      (notify_all (client_username ^ " joined the game"))
+      !client_output_channels
+  in
+  client_output_channels := client_out :: !client_output_channels;
+  incr counter;
+  let%lwt () =
+    let status = Printf.sprintf "Currently have %d/%d players" !counter 2 in
 
-   (* notifying everyone of the connection *) let%lwt () = Lwt_io.fprintf
-   client_out "You joined the game\n" in let%lwt () = Lwt_io.flush client_out in
-   let%lwt () = Lwt_list.iter_p (notify_all (client_username ^ " joined the
-   game")) !client_output_channels in client_output_channels := client_out ::
-   !client_output_channels; incr counter; let%lwt () = let status =
-   Printf.sprintf "Currently have %d/%d players" !counter 2 in
+    let message =
+      if !counter > 1 then status ^ "\nStarting game"
+      else
+        Printf.sprintf "%s\nWaiting for %d more player(s)..." status
+          (2 - !counter)
+    in
 
-   let message = if !counter > 1 then status ^ "\nStarting game" else
-   Printf.sprintf "%s\nWaiting for %d more player(s)..." status (2 - !counter)
-   in
+    Lwt_list.iter_p (notify_all message) !client_output_channels
+  in
+  let%lwt () = Lwt_io.flush client_out in
+  let%lwt () = Lwt_io.flush client_out in
 
-   Lwt_list.iter_p (notify_all message) !client_output_channels in let%lwt () =
-   Lwt_io.flush client_out in let%lwt () = Lwt_io.flush client_out in
+  (* turn taking *)
+  let rec receive_message () =
+    Lwt.catch
+      (fun () ->
+        let%lwt message = Lwt_io.read_line client_in in
+        let%lwt () =
+          Lwt_io.printlf "Message received from client %s. %s" address_string
+            message
+        in
+        let%lwt () =
+          Lwt_list.iter_p
+            (notify_all (client_username ^ " says: " ^ message))
+            (List.filter
+               (fun output_channel -> output_channel != client_out)
+               !client_output_channels)
+        in
+        receive_message ())
+      (function
+        | End_of_file ->
+            client_output_channels :=
+              List.filter
+                (fun output_channel -> output_channel != client_out)
+                !client_output_channels;
+            let%lwt () =
+              Lwt_list.iter_p
+                (notify_all (client_username ^ " left the chat"))
+                !client_output_channels
+            in
+            Lwt_io.printlf "Client %s (%s) disconnected." address_string
+              client_username
+        | exn -> fatal_error ("Error: " ^ Printexc.to_string exn))
+  in
+  receive_message ()
 
-   (* turn taking *) let rec receive_message () = Lwt.catch (fun () -> let%lwt
-   message = Lwt_io.read_line client_in in let%lwt () = Lwt_io.printlf "Message
-   received from client %s. %s" address_string message in let%lwt () =
-   Lwt_list.iter_p (notify_all (client_username ^ " says: " ^ message))
-   (List.filter (fun output_channel -> output_channel != client_out)
-   !client_output_channels) in receive_message ()) (function | End_of_file ->
-   client_output_channels := List.filter (fun output_channel -> output_channel
-   != client_out) !client_output_channels; let%lwt () = Lwt_list.iter_p
-   (notify_all (client_username ^ " left the chat")) !client_output_channels in
-   Lwt_io.printlf "Client %s (%s) disconnected." address_string client_username
-   | exn -> fatal_error ("Error: " ^ Printexc.to_string exn)) in receive_message
-   ()
+let run_server () =
+  let server () =
+    let server_port = add_IP_and_port "server" in
+    let%lwt () = Lwt_io.printlf "Server built successfully." in
+    let%lwt running_server =
+      Lwt_io.establish_server_with_client_address server_port client_handler
+    in
+    let (never_resolved : unit Lwt.t), _unused_resolver = Lwt.wait () in
+    never_resolved
+  in
+  Lwt_main.run (server ())
 
-   let run_server () = let server () = let%lwt () = Lwt_io.printlf "Server built
-   successfully." in let%lwt running_server =
-   Lwt_io.establish_server_with_client_address localhost_5000 client_handler in
-   let (never_resolved : unit Lwt.t), _unused_resolver = Lwt.wait () in
-   never_resolved in Lwt_main.run (server ())
+let run_client () =
+  let client () =
+    (* establishing usernames and connecting to server *)
+    let game_started_waiter, wake_game_started = Lwt.wait () in
+    let connect_port = add_IP_and_port "client" in
+    let client_username = parse_client_username () in
+    client_usernames := client_username :: !client_usernames;
+    let%lwt server_in, server_out = Lwt_io.open_connection connect_port in
+    let%lwt () = Lwt_io.write_line server_out client_username in
+    let%lwt () = Lwt_io.flush server_out in
 
-   let run_client () = let client () = (* establishing usernames and connecting
-   to server *) let game_started_waiter, wake_game_started = Lwt.wait () in let
-   client_username = parse_client_username () in let%lwt server_in, server_out =
-   Lwt_io.open_connection localhost_5000 in let%lwt () = Lwt_io.write_line
-   server_out client_username in let%lwt () = Lwt_io.flush server_out in
+    (* initialize game *)
+    let player_num =
+      if List.nth !client_usernames 0 = client_username then 0 else 1
+    in
+    let rec init_game count =
+      if player_num = 0 then print_board (List.nth board_list 0)
+      else print_board (List.nth board_list 1);
+      let%lwt () =
+        Lwt_io.print ("Add ship " ^ string_of_int (count + 1) ^ "\n")
+      in
+      let ship_size = List.nth ship_sizes count in
+      let rec read_coordinates i max ship_lst =
+        if i > max then Lwt.return ship_lst
+        else
+          let%lwt () =
+            Lwt_io.print ("Add coordinate " ^ string_of_int i ^ ": ")
+          in
+          let%lwt coord_opt = Lwt_io.read_line_opt Lwt_io.stdin in
+          match coord_opt with
+          | None -> fatal_error "Input closed. Exiting client."
+          | Some message -> (
+              match verify_coord message with
+              | None ->
+                  let%lwt () =
+                    Lwt_io.printl
+                      "Invalid coordinate. Please enter two integers like: 1 2"
+                  in
+                  read_coordinates i max ship_lst
+              | Some coord -> read_coordinates (i + 1) max (coord :: ship_lst))
+      in
+      let%lwt ship_coords = read_coordinates 1 ship_size [] in
+      if player_num = 0 then begin
+        Cs3110_final_project.Initialize.place_ship (List.nth board_list 0)
+          (List.nth Cs3110_final_project.Initialize.ship_list0_og count)
+          ship_coords;
 
-   (* initialize game *) let rec send () = let%lwt () = Lwt_io.print "Send a
-   message: " in let%lwt message_opt = Lwt_io.read_line_opt Lwt_io.stdin in
-   match message_opt with | None -> fatal_error "Input closed. Exiting client."
-   | Some message -> Lwt.catch (fun () -> let%lwt () = Lwt_io.write_line
-   server_out message in let%lwt () = Lwt_io.flush server_out in send ())
-   (function | Lwt_io.Channel_closed _ | Unix.Unix_error (_, _, _) ->
-   fatal_error "Server disconnected." | exn -> fatal_error ("Error: " ^
-   Printexc.to_string exn)) in
+        print_board (List.nth board_list 0)
+      end
+      else begin
+        Cs3110_final_project.Initialize.place_ship
+          (List.nth board_list 1) (* FIXED! use board_list 1 *)
+          (List.nth Cs3110_final_project.Initialize.ship_list1_og count)
+          ship_coords;
 
-   let rec check_server () = let%lwt message_opt = Lwt_io.read_line_opt
-   server_in in match message_opt with | None -> fatal_error "\nServer
-   disconnected." | Some msg -> let%lwt () = Lwt_io.printlf "%s" msg in if msg =
-   "Starting game" then (* wake the promise once *) Lwt.wakeup_later
-   wake_game_started (); check_server () in let check_p = check_server () in
-   let%lwt () = game_started_waiter in Lwt.choose [ send (); check_p ] in
-   Lwt_main.run (client ())
+        print_board (List.nth board_list 1)
+      end;
+      if count + 1 < List.length ship_sizes then init_game (count + 1)
+      else Lwt.return_unit
+    in
 
-   let _ = let print_usage () = Printf.printf "Please specify whether you are a
-   server or client" in if Array.length Sys.argv < 1 then print_usage () else
-   match Sys.argv.(1) with | "server" -> run_server () | "client" -> run_client
-   () | _ -> print_usage () *)
+    let rec check_server () =
+      let%lwt message_opt = Lwt_io.read_line_opt server_in in
+      match message_opt with
+      | None -> fatal_error "\nServer disconnected."
+      | Some msg ->
+          let%lwt () = Lwt_io.printlf "%s" msg in
+          if msg = "Starting game\n\n" then (* wake the promise once *)
+            Lwt.wakeup_later wake_game_started ();
+          check_server ()
+    in
+    let check_p = check_server () in
+    let%lwt () = game_started_waiter in
+    Lwt.choose [ init_game 0; check_p ]
+  in
+  Lwt_main.run (client ())
+
+let _ =
+  let print_usage () =
+    Printf.printf "Please specify whether you are a server or client"
+  in
+  if Array.length Sys.argv < 1 then print_usage ()
+  else
+    match Sys.argv.(1) with
+    | "server" -> run_server ()
+    | "client" -> run_client ()
+    | _ -> print_usage ()

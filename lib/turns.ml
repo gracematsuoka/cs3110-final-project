@@ -15,8 +15,8 @@ let validate_coord (r, c) player :
       List.nth Initialize.board_list (if player = 0 then 1 else 0)
     in
     let ship_list_upd : Initialize.ship list =
-      if player = 0 then Initialize.ship_list1_upd
-      else Initialize.ship_list0_upd
+      if player = 0 then !Initialize.ship_list1_upd
+      else !Initialize.ship_list0_upd
     in
     let state = Array.get (Array.get attack_board c) r in
     if state <> Initialize.EMPTY then
@@ -102,7 +102,7 @@ let handle_turn (r, c) (player : int) =
         end
         else begin
           change_to_sink ship_hit_name ship_list_og player;
-          if check_win ship_list_upd then
+          if check_win !ship_list_upd then
             (Printf.sprintf "Player %s wins!" (string_of_int player), player + 3)
           else ("You sank a ship! Go again.", player)
         end
