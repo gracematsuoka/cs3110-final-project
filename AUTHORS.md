@@ -6,6 +6,8 @@ Chelsea She
 
 James Tucker
 
-
-
-"Also include a file named AUTHORS.md that identifies your team members and provides any citations that are needed."
+ChatGPT 5:
+    Installation of GTK GUI
+    Suggest representing ships as records and using Set for coordinates
+    Proofreading for bugs
+    Ducumentation suggestions
