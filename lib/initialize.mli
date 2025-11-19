@@ -28,16 +28,21 @@ val ship_list0_upd : ship list ref
 val ship_list1_upd : ship list ref
 (** list of 5 ships for player1, coordinates update with hits *)
 
-val ship_list0_og : ship list ref
+val ship_list0_og : ship list
 (** list of 5 ships for player0, not linked to any part of ship_list0_upd and
     will not change *)
 
-val ship_list1_og : ship list ref
+val ship_list1_og : ship list
 (** list of 5 ships for player1, not linked to any part of ship_list0_upd and
     will not change *)
 
+val initialize_grid : unit -> grid_state array array
+(** initializes an empty grid *)
 
-val place_ship: grid_state array array -> ship -> (int * int) list -> bool
+val validate_ship_coordinate :
+  (int * int) list -> bool
+(** validates that the given coordinates are within bounds and in a straight line*)
+val place_ship: grid_state array array -> ship -> (int * int) list -> unit
 (* places a ship on the board *)
 
 val board_list : grid_state array array list
