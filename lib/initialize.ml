@@ -34,16 +34,12 @@ let initialize_grid () =
 
 (* Builds 5 ships for a given player. *)
 
-let validate_ship_coordinate
-    (grid : grid_state array array)
-    (coords : (int * int) list) : bool =
-  List.for_all
-    (fun (r, c) ->
-      r >= 0 && r < grid_size &&
-      c >= 0 && c < grid_size &&
-      grid.(r).(c) = EMPTY
-    )
-    coords
+let in_bounds (r, c) =
+  r >= 0 && r < 10 && c >= 0 && c < 10
+
+let validate_ship_coordinate coords =
+  coords <> [] &&
+  List.for_all in_bounds coords
 
 (* Creates an empty ship list *)
 let build_ship_list player =
@@ -53,7 +49,14 @@ let build_ship_list player =
   in
   List.map (fun n -> { name = n; coords = CoordSet.empty }) names
 
-
+let place_ship board ship coords =
+  if not (validate_ship_coordinate coords) then
+    failwith ("Invalid coordinates for ship " ^ ship.name);
+  List.iter
+    (fun (r, c) ->
+      board.(r).(c) <- SHIP)
+    coords;
+  ship.coords <- List.fold_left (fun set xy -> CoordSet.add xy set) CoordSet.empty coords
 
 let ship_list0_upd = build_ship_list 0
 let ship_list1_upd = build_ship_list 1
