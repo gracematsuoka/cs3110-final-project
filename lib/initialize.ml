@@ -27,16 +27,32 @@ type grid_state =
 let grid_size = 10
 
 (* Creates empty 10x10 grid. *)
-let create_grid () =
+let initialize_grid () =
   Array.init grid_size (fun _ ->
       Array.init grid_size (fun _ -> EMPTY))
 
 
 (* Builds 5 ships for a given player. *)
+
+let validate_ship_coordinate
+    (grid : grid_state array array)
+    (coords : (int * int) list) : bool =
+  List.for_all
+    (fun (r, c) ->
+      r >= 0 && r < grid_size &&
+      c >= 0 && c < grid_size &&
+      grid.(r).(c) = EMPTY
+    )
+    coords
+
+(* Creates an empty ship list *)
 let build_ship_list player =
-  let prefix = if player = 0 then "0" else "1" in
-  let letters = [ "a"; "b"; "c"; "d"; "e" ] in
-  List.map (fun l -> { name = prefix ^ l; coords = CoordSet.empty }) letters
+  let names =
+    List.map (fun c -> Printf.sprintf "%d%c" player c)
+      [ 'a'; 'b'; 'c'; 'd'; 'e' ]
+  in
+  List.map (fun n -> { name = n; coords = CoordSet.empty }) names
+
 
 
 let ship_list0_upd = build_ship_list 0
@@ -47,8 +63,8 @@ let ship_list1_og = build_ship_list 1
 
 let board_list =
   [
-    create_grid ();
-    create_grid ();
-    create_grid ();
-    create_grid ();
+    initialize_grid ();
+    initialize_grid ();
+    initialize_grid ();
+    initialize_grid ();
   ]
