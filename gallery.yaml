@@ -1,6 +1,3 @@
-## DELETE THESE WHEN FINISHED
-## Your PG will check the format of the gallery entry YAML file and read its contents. You could get a deduction for missing information.
-
 ---
 group:  
   - name: Elisa Pan
@@ -18,20 +15,21 @@ pm:
 
 publish: false
 
-title: "Battleship Game" # Pithy title
+title: "Battleship Game"
 
 git-repo: "https://github.com/gracematsuoka/cs3110-final-project.git"
 
 demo-video-url: "______________________" # Replace the URL with your own demo video.
 
 desc: > 
-  [Write a short, attention-grabbing description of your project.]
+  Our project is a two-player battleship game. It supports the standard battleship
+  mechanics like ship placement, turn-based attacks, hit/miss/sink detection, and
+  sinking and win checking. 
 
-  [ex. Our project is an interactive calculator. It supports standard mathematical
-  operations like addition, multiplication, negation, and division on both
-  integers and floating-point numbers. The interface is completely
-  programmable--new functions can easily be defined and assigned to new "keys"
-  in the visual interface.
-
-  Standard visual I/O is supported, but the calculator can also emit sound. By
-  pressing down a special key, it can play a fugue by J.S. Bach.]
+  The interface for each player consists of two 10x10 boards, the upper board
+  representing the player's personal board -- holding their 5 ships and all their
+  opponents attack attempts -- and the lower board representing the player's attack
+  board -- showing the results of their own attack attempts.
+  
+  The game logic is fully modular, making it easy to extend with new ship types and
+  custom board sizes.
