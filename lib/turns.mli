@@ -12,5 +12,8 @@ val handle_turn : int * int -> int -> string * int
       or a SINK: if the other player still has remaining ships, [player] foes
       again; if the other player has no ships left, [player] wins.
 
-    Requires [player] is 0 or 1. Returns message describing result of attack and
-    and next player who should take a turn.*)
+    Requires [player] is 0 or 1.
+
+    Returns message describing result of attack and and next player who should
+    take a turn -- 0 means player 0 goes next, 1 means player 1 goes next, 3
+    means player 0 wins, 4 means player 1 wins. *)
