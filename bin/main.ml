@@ -34,10 +34,13 @@ let board_list : grid_state array array list =
 
 let counter = ref 0
 let client_output_channels : Lwt_io.output_channel list ref = ref []
-let ship_sizes = [ 5; 4; 4; 3; 2; 1 ]
-let ship_names = [ 'a'; 'b'; 'c'; 'd'; 'e' ]
+
+(* let ship_sizes = [ 5; 4; 4; 3; 2; 2 ] *)
+let ship_sizes = [ 1; 2; 3 ]
 let client_usernames : string list ref = ref []
-let turn = ref 0
+let ready_counter = ref 0
+let client_ready_output_channels : Lwt_io.output_channel list ref = ref []
+let current_player : Lwt_io.output_channel option ref = ref None
 
 (** [fatal_error msg] will print an error message [msg] and then end the
     execution *)
@@ -116,17 +119,14 @@ let client_handler client_addr (client_in, client_out) : unit Lwt.t =
   incr counter;
   let%lwt () =
     let status = Printf.sprintf "Currently have %d/%d players" !counter 2 in
-
     let message =
-      if !counter > 1 then status ^ "\nStarting game"
+      if !counter > 1 then status ^ "\nStarting game\n"
       else
         Printf.sprintf "%s\nWaiting for %d more player(s)..." status
           (2 - !counter)
     in
-
     Lwt_list.iter_p (notify_all message) !client_output_channels
   in
-  let%lwt () = Lwt_io.flush client_out in
   let%lwt () = Lwt_io.flush client_out in
 
   (* turn taking *)
@@ -134,24 +134,65 @@ let client_handler client_addr (client_in, client_out) : unit Lwt.t =
     Lwt.catch
       (fun () ->
         let%lwt message = Lwt_io.read_line client_in in
+        let msg = String.trim message in
         let%lwt () =
-          Lwt_io.printlf "Message received from client %s. %s" address_string
-            message
+          Lwt_io.printlf "Message received from client %s (%s). %s"
+            address_string client_username msg
         in
-        let%lwt () =
-          Lwt_list.iter_p
-            (notify_all (client_username ^ " says: " ^ message))
-            (List.filter
-               (fun output_channel -> output_channel != client_out)
-               !client_output_channels)
-        in
-        receive_message ())
+
+        match msg with
+        | "BOARD_READY" ->
+            incr ready_counter;
+            let status =
+              Printf.sprintf "%d/%d players finished setup" !ready_counter 2
+            in
+            let message =
+              if !ready_counter >= 2 then begin
+                (* Both players are ready. Choose a starting player. *)
+                match !client_output_channels with
+                | p1 :: t ->
+                    (* Let's say p1 starts *)
+                    current_player := Some p1;
+
+                    let%lwt () =
+                      Lwt_list.iter_p
+                        (notify_all
+                           (status
+                          ^ "\n\n\
+                             Step 2 - Try to sink all the other player's ship \
+                             first!\n"))
+                        !client_output_channels
+                    in
+                    (* Choose whose turn to start *)
+                    let%lwt () = Lwt_io.write_line p1 "YOUR_TURN" in
+                    let%lwt () = Lwt_io.flush p1 in
+                    let%lwt () =
+                      Lwt_list.iter_p
+                        (fun p ->
+                          let%lwt () = Lwt_io.write_line p "OPPONENT_TURN" in
+                          Lwt_io.flush p)
+                        t
+                    in
+                    receive_message ()
+                | _ -> receive_message ()
+              end
+              else begin
+                (* Only one player ready so far *)
+                client_ready_output_channels :=
+                  client_out :: !client_ready_output_channels;
+                let message =
+                  status ^ "\nWaiting for the other player to finish setup..."
+                in
+                Lwt_list.iter_p (notify_all message)
+                  !client_ready_output_channels
+              end
+            in
+            receive_message ()
+        | _ -> receive_message ())
       (function
         | End_of_file ->
             client_output_channels :=
-              List.filter
-                (fun output_channel -> output_channel != client_out)
-                !client_output_channels;
+              List.filter (( != ) client_out) !client_output_channels;
             let%lwt () =
               Lwt_list.iter_p
                 (notify_all (client_username ^ " left the chat"))
@@ -179,6 +220,7 @@ let run_client () =
   let client () =
     (* establishing usernames and connecting to server *)
     let game_started_waiter, wake_game_started = Lwt.wait () in
+    let board_finished_waiter, wake_board_finished = Lwt.wait () in
     let connect_port = add_IP_and_port "client" in
     let client_username = parse_client_username () in
     client_usernames := client_username :: !client_usernames;
@@ -186,14 +228,48 @@ let run_client () =
     let%lwt () = Lwt_io.write_line server_out client_username in
     let%lwt () = Lwt_io.flush server_out in
 
+    let rec check_server () =
+      let%lwt message_opt = Lwt_io.read_line_opt server_in in
+      match message_opt with
+      | None -> fatal_error "\nServer disconnected."
+      | Some msg ->
+          let msg = String.trim msg in
+          let%lwt () = Lwt_io.printlf "%s" msg in
+          (* This match MUST return unit Lwt.t in every branch *)
+          let handler =
+            match msg with
+            | "Starting game" ->
+                (* wakeup_later is just unit, so wrap it in Lwt.return *)
+                Lwt.return (Lwt.wakeup_later wake_game_started ())
+            | "BOARD_READY" ->
+                Lwt.return (Lwt.wakeup_later wake_board_finished ())
+            | "YOUR_TURN" -> (
+                let%lwt () =
+                  Lwt_io.print "Your turn! Enter guess (row col): "
+                in
+                let%lwt coord_opt = Lwt_io.read_line_opt Lwt_io.stdin in
+                match coord_opt with
+                | None -> fatal_error "Input closed. Exiting client."
+                | Some coord_line ->
+                    let%lwt () =
+                      Lwt_io.write_line server_out ("GUESS " ^ coord_line)
+                    in
+                    Lwt_io.flush server_out)
+            | _ -> Lwt.return_unit
+          in
+          let%lwt () = handler in
+          check_server ()
+    in
+    let check_p = check_server () in
+    let%lwt () = game_started_waiter in
+
     (* initialize game *)
     let player_num =
       if List.nth !client_usernames 0 = client_username then 0 else 1
     in
     let rec init_game count =
-      if player_num = 0 then print_board (List.nth board_list 0)
-      else print_board (List.nth board_list 1);
       let%lwt () =
+        if count <> 0 then print_board (List.nth board_list player_num);
         Lwt_io.print ("Add ship " ^ string_of_int (count + 1) ^ "\n")
       in
       let ship_size = List.nth ship_sizes count in
@@ -220,35 +296,27 @@ let run_client () =
       if player_num = 0 then begin
         Cs3110_final_project.Initialize.place_ship (List.nth board_list 0)
           (List.nth Cs3110_final_project.Initialize.ship_list0_og count)
-          ship_coords;
-
-        print_board (List.nth board_list 0)
+          ship_coords
       end
       else begin
-        Cs3110_final_project.Initialize.place_ship
-          (List.nth board_list 1) (* FIXED! use board_list 1 *)
+        Cs3110_final_project.Initialize.place_ship (List.nth board_list 1)
           (List.nth Cs3110_final_project.Initialize.ship_list1_og count)
-          ship_coords;
-
-        print_board (List.nth board_list 1)
+          ship_coords
       end;
       if count + 1 < List.length ship_sizes then init_game (count + 1)
-      else Lwt.return_unit
+      else begin
+        print_board (List.nth board_list player_num);
+        let%lwt () = Lwt_io.write_line server_out "BOARD_READY" in
+        let%lwt () = Lwt_io.flush server_out in
+        Lwt.return_unit
+      end
     in
+    let%lwt () = Lwt_io.printl "Step 1 – set up your ships!" in
+    let%lwt () = init_game 0 in
+    let%lwt () = board_finished_waiter in
 
-    let rec check_server () =
-      let%lwt message_opt = Lwt_io.read_line_opt server_in in
-      match message_opt with
-      | None -> fatal_error "\nServer disconnected."
-      | Some msg ->
-          let%lwt () = Lwt_io.printlf "%s" msg in
-          if msg = "Starting game\n\n" then (* wake the promise once *)
-            Lwt.wakeup_later wake_game_started ();
-          check_server ()
-    in
-    let check_p = check_server () in
-    let%lwt () = game_started_waiter in
-    Lwt.choose [ init_game 0; check_p ]
+    (* turn taking *)
+    check_p
   in
   Lwt_main.run (client ())
 
