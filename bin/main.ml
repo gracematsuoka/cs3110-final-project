@@ -140,55 +140,71 @@ let client_handler client_addr (client_in, client_out) : unit Lwt.t =
             address_string client_username msg
         in
 
-        match msg with
-        | "BOARD_READY" ->
-            incr ready_counter;
-            let status =
-              Printf.sprintf "%d/%d players finished setup" !ready_counter 2
-            in
-            let message =
+        (* Each branch returns unit Lwt.t *)
+        let handler : unit Lwt.t =
+          match msg with
+          | "BOARD_READY" ->
+              incr ready_counter;
+              let status =
+                Printf.sprintf "%d/%d players finished setup" !ready_counter 2
+              in
+
+              (* Track which clients have sent BOARD_READY, if you still need
+                 this *)
+              client_ready_output_channels :=
+                client_out :: !client_ready_output_channels;
+
               if !ready_counter >= 2 then begin
                 (* Both players are ready. Choose a starting player. *)
                 match !client_output_channels with
                 | p1 :: t ->
-                    (* Let's say p1 starts *)
                     current_player := Some p1;
-
+                    let status_msg =
+                      status
+                      ^ "\n\n\
+                         Step 2 - Try to sink all the other player's ship first!\n"
+                    in
                     let%lwt () =
-                      Lwt_list.iter_p
-                        (notify_all
-                           (status
-                          ^ "\n\n\
-                             Step 2 - Try to sink all the other player's ship \
-                             first!\n"))
+                      Lwt_list.iter_p (notify_all status_msg)
                         !client_output_channels
                     in
-                    (* Choose whose turn to start *)
+                    (* p1's turn *)
                     let%lwt () = Lwt_io.write_line p1 "YOUR_TURN" in
                     let%lwt () = Lwt_io.flush p1 in
+                    (* everyone else: opponent's turn *)
                     let%lwt () =
                       Lwt_list.iter_p
                         (fun p ->
-                          let%lwt () = Lwt_io.write_line p "OPPONENT_TURN" in
-                          Lwt_io.flush p)
+                          if p == p1 then Lwt.return_unit
+                          else
+                            let%lwt () = Lwt_io.write_line p "OPPONENT_TURN" in
+                            Lwt_io.flush p)
                         t
                     in
-                    receive_message ()
-                | _ -> receive_message ()
+                    Lwt.return_unit
+                | _ ->
+                    (* Shouldn't happen with 2-player game *)
+                    Lwt.return_unit
               end
               else begin
                 (* Only one player ready so far *)
                 client_ready_output_channels :=
                   client_out :: !client_ready_output_channels;
-                let message =
+                let msg =
                   status ^ "\nWaiting for the other player to finish setup..."
                 in
-                Lwt_list.iter_p (notify_all message)
-                  !client_ready_output_channels
+                Lwt_list.iter_p (notify_all msg) !client_ready_output_channels
               end
-            in
-            receive_message ()
-        | _ -> receive_message ())
+          | _ ->
+              (* Existing chat logic *)
+              Lwt_list.iter_p
+                (notify_all (client_username ^ " says: " ^ msg))
+                (List.filter
+                   (fun output_channel -> output_channel != client_out)
+                   !client_output_channels)
+        in
+        let%lwt () = handler in
+        receive_message ())
       (function
         | End_of_file ->
             client_output_channels :=
