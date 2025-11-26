@@ -1,3 +1,11 @@
-Instructions on how to install and build your system. This file should include any commands your grader needs to run to install OPAM packages, etc.
+For this project's GUI, we are using GTK3. To use GTK3 do the following:
 
-Your PG will attempt to download your submission from your repo, follow the instructions in your INSTALL file, and run your system on their own machine. If that's successful, you get the 3 points.
+- Install GTK3 on your machine (C library): `brew install gtk+3`
+- Install the GTK3 OCaml package: `opam install lablgtk3`
+
+To run + build this dune project:
+
+- Run `dune build`
+- To start the project, you must build a server and connect clients:
+  - Run `dune exec bin/main.exe server <IP Address>` to build the server
+  - Run `dune exec bin/main.exe client <username> <IP Address>` to connect a client with a username to a specific
