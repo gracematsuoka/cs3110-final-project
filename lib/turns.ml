@@ -14,7 +14,7 @@ let validate_coord (r, c) player :
     let attack_board =
       List.nth Initialize.board_list (if player = 0 then 1 else 0)
     in
-    let ship_list_upd : Initialize.ship list =
+    let ship_list_upd =
       if player = 0 then Initialize.ship_list1_upd
       else Initialize.ship_list0_upd
     in
