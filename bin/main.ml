@@ -4,51 +4,64 @@ open Cs3110_final_project.Initialize
 let emoji_of_cell = function
   | EMPTY -> "🌊"
   | SHIP -> "🚢"
-  | HIT -> "💥"
+  | HIT -> "💣"
   | MISS -> "❌"
   | SINK -> "☠️"
 
-let print_two_boards board_left board_right =
+let print_two_boards board_left board_right : unit Lwt.t =
   let nrows = Array.length board_left in
   let ncols = Array.length board_left.(0) in
 
-  (* -------- COLUMN HEADERS FOR BOTH BOARDS -------- *)
-  Printf.printf "      ";
+  let%lwt () = Lwt_io.print "      " in
 
-  (* indent for row numbers *)
-  for j = 0 to ncols - 1 do
-    Printf.printf "%d  " j
-  done;
+  (* Column headers for left board *)
+  let rec print_cols j =
+    if j = ncols then Lwt.return_unit
+    else
+      let%lwt () = Lwt_io.printf "%d  " j in
+      print_cols (j + 1)
+  in
+  let%lwt () = print_cols 0 in
 
-  Printf.printf "         ";
+  (* gap between boards *)
+  let%lwt () = Lwt_io.print "      " in
 
-  (* space between boards *)
-  for j = 0 to ncols - 1 do
-    Printf.printf "%d  " j
-  done;
-  print_newline ();
+  (* Column headers for right board *)
+  let%lwt () = print_cols 0 in
+  let%lwt () = Lwt_io.print "\n" in
 
-  (* --------- PRINT ROWS SIDE BY SIDE --------- *)
-  for i = 0 to nrows - 1 do
-    (* Left board row *)
-    Printf.printf "%2d   " i;
-    for j = 0 to ncols - 1 do
-      Printf.printf "%s " (emoji_of_cell board_left.(i).(j))
-    done;
+  (* Print each row *)
+  let rec print_rows i =
+    if i = nrows then Lwt.return_unit
+    else
+      let%lwt () = Lwt_io.printf "%2d   " i in
 
-    (* gap between boards *)
-    Printf.printf "      |      ";
+      (* left board cells *)
+      let rec print_left j =
+        if j = ncols then Lwt.return_unit
+        else
+          let%lwt () = Lwt_io.print (emoji_of_cell board_left.(i).(j) ^ " ") in
+          print_left (j + 1)
+      in
+      let%lwt () = print_left 0 in
 
-    (* Right board row *)
-    Printf.printf "%2d   " i;
-    for j = 0 to ncols - 1 do
-      Printf.printf "%s " (emoji_of_cell board_right.(i).(j))
-    done;
+      let%lwt () = Lwt_io.print "   |   " in
 
-    print_newline ()
-  done;
+      (* right board cells *)
+      let rec print_right j =
+        if j = ncols then Lwt.return_unit
+        else
+          let%lwt () = Lwt_io.print (emoji_of_cell board_right.(i).(j) ^ " ") in
+          print_right (j + 1)
+      in
+      let%lwt () = print_right 0 in
 
-  print_newline ()
+      let%lwt () = Lwt_io.print "\n" in
+      print_rows (i + 1)
+  in
+  let%lwt () = print_rows 0 in
+
+  Lwt_io.print "\n"
 
 let print_board board =
   let nrows = Array.length board in
@@ -148,7 +161,14 @@ let client_handler client_addr (client_in, client_out) : unit Lwt.t =
     Lwt_io.printlf "I got a connection from %s (%s)." address_string
       client_username
   in
+  let player_num =
+    match !client_output_channels with
+    | [] -> 0
+    | [ _ ] -> 1
+    | _ -> 1
+  in
   client_usernames := client_username :: !client_usernames;
+  client_output_channels := client_out :: !client_output_channels;
 
   (**************** WAITING ROOM ****************)
   let%lwt () = Lwt_io.fprintf client_out "You joined the game\n" in
@@ -158,7 +178,6 @@ let client_handler client_addr (client_in, client_out) : unit Lwt.t =
       (notify_all (client_username ^ " joined the game"))
       !client_output_channels
   in
-  client_output_channels := client_out :: !client_output_channels;
   incr counter;
   let%lwt () =
     let status = Printf.sprintf "Currently have %d/%d players" !counter 2 in
@@ -182,10 +201,7 @@ let client_handler client_addr (client_in, client_out) : unit Lwt.t =
           Lwt_io.printlf "Message received from client %s (%s). %s"
             address_string client_username msg
         in
-        let player_num =
-          if List.nth !client_usernames 0 = client_username then 0 else 1
-        in
-        let guess_handler msg =
+        let guess_handler msg r c =
           let others =
             List.filter (fun oc -> oc != client_out) !client_output_channels
           in
@@ -196,33 +212,60 @@ let client_handler client_addr (client_in, client_out) : unit Lwt.t =
           in
           match msg with
           | "Hit! Go again." ->
+              let%lwt () =
+                Lwt_io.write_line client_out
+                  ("RESULT YOU HIT " ^ string_of_int r ^ " " ^ string_of_int c)
+              in
               let%lwt () = Lwt_io.write_line client_out "YOUR_TURN" in
               let%lwt () = Lwt_io.flush client_out in
               let%lwt () = Lwt_io.write_line other_out "OPPONENT_TURN" in
-              let%lwt () = Lwt_io.flush other_out in
-              Lwt_list.iter_p
-                (notify_all
-                   (client_username ^ " hit your ship!\n" ^ client_username
-                  ^ " will go again."))
-                !client_output_channels
+              let%lwt () =
+                Lwt_io.write_line other_out
+                  (client_username ^ " hit your ship!\n" ^ client_username
+                 ^ " will go again.")
+              in
+              let%lwt () =
+                Lwt_io.write_line other_out
+                  ("RESULT OPPONENT HIT " ^ string_of_int r ^ " "
+                 ^ string_of_int c)
+              in
+              Lwt_io.flush other_out
           | "You sank a ship! Go again." ->
+              let%lwt () =
+                Lwt_io.write_line client_out
+                  ("RESULT YOU SINK " ^ string_of_int r ^ " " ^ string_of_int c)
+              in
               let%lwt () = Lwt_io.write_line client_out "YOUR_TURN" in
               let%lwt () = Lwt_io.flush client_out in
-              let%lwt () = Lwt_io.write_line other_out "OPPONENT_TURN" in
-              let%lwt () = Lwt_io.flush other_out in
-              Lwt_list.iter_p
-                (notify_all
-                   (client_username ^ " sunk your ship!\n" ^ client_username
-                  ^ " will go again."))
-                !client_output_channels
+              let%lwt () =
+                Lwt_io.write_line other_out
+                  (client_username ^ " sunk your ship!\n" ^ client_username
+                 ^ " will go again.")
+              in
+              let%lwt () =
+                Lwt_io.write_line other_out
+                  ("RESULT OPPONENT SINK " ^ string_of_int r ^ " "
+                 ^ string_of_int c)
+              in
+              Lwt_io.flush other_out
           | "Miss" ->
+              let%lwt () =
+                Lwt_io.write_line other_out
+                  (client_username ^ " missed. Your turn.")
+              in
               let%lwt () = Lwt_io.write_line other_out "YOUR_TURN" in
+              let%lwt () =
+                Lwt_io.write_line other_out
+                  ("RESULT OPPONENT MISS " ^ string_of_int r ^ " "
+                 ^ string_of_int c)
+              in
               let%lwt () = Lwt_io.flush other_out in
+              let%lwt () =
+                Lwt_io.write_line client_out
+                  ("RESULT YOU MISS " ^ string_of_int r ^ " " ^ string_of_int c)
+              in
               let%lwt () = Lwt_io.write_line client_out "OPPONENT_TURN" in
-              let%lwt () = Lwt_io.flush client_out in
-              Lwt_list.iter_p
-                (notify_all (client_username ^ " missed. Other player's turn."))
-                !client_output_channels
+              Lwt_io.flush client_out
           | msg when String.length msg >= 7 && String.sub msg 0 7 = "Player " ->
               Lwt_list.iter_p (notify_all msg) !client_output_channels
           | _ -> Lwt.return_unit
@@ -329,7 +372,7 @@ let client_handler client_addr (client_in, client_out) : unit Lwt.t =
                           player_num
                       in
                       let%lwt () = Lwt_io.write_line client_out result_msg in
-                      guess_handler result_msg
+                      guess_handler result_msg row col
                   | _ -> Lwt_io.printl "Invalid GUESS format: r or c not an int"
                   )
               | _ ->
@@ -496,15 +539,63 @@ let run_client () =
                   if List.nth !client_usernames 0 = client_username then 0
                   else 1
                 in
-                if player_num = 0 then
-                  print_two_boards (List.nth board_list 0)
-                    (List.nth board_list 1)
-                else
-                  print_two_boards (List.nth board_list 2)
-                    (List.nth board_list 3);
+                let%lwt () =
+                  if player_num = 0 then
+                    print_two_boards (List.nth board_list 0)
+                      (List.nth board_list 1)
+                  else
+                    print_two_boards (List.nth board_list 2)
+                      (List.nth board_list 3)
+                in
                 let%lwt () = guess () in
                 Lwt.return_unit
             | "END_GAME" -> fatal_error "\nExiting game..."
+            | m when String.starts_with ~prefix:"RESULT " m ->
+                let parts = String.split_on_char ' ' m in
+                begin
+                  let attack_idx =
+                    if List.nth !client_usernames 0 = client_username then 1
+                    else 3
+                  in
+                  let attack_board = List.nth board_list attack_idx in
+                  let personal_idx =
+                    if List.nth !client_usernames 0 = client_username then 0
+                    else 2
+                  in
+                  let personal_board = List.nth board_list personal_idx in
+                  match parts with
+                  | [ "RESULT"; "YOU"; "HIT"; r; c ] ->
+                      let r = int_of_string r in
+                      let c = int_of_string c in
+                      attack_board.(r).(c) <- HIT;
+                      Lwt.return ()
+                  | [ "RESULT"; "YOU"; "SINK"; r; c ] ->
+                      let r = int_of_string r in
+                      let c = int_of_string c in
+                      attack_board.(r).(c) <- SINK;
+                      Lwt.return ()
+                  | [ "RESULT"; "YOU"; "MISS"; r; c ] ->
+                      let r = int_of_string r in
+                      let c = int_of_string c in
+                      attack_board.(r).(c) <- MISS;
+                      Lwt.return ()
+                  | [ "RESULT"; "OPPONENT"; "HIT"; r; c ] ->
+                      let r = int_of_string r in
+                      let c = int_of_string c in
+                      personal_board.(r).(c) <- HIT;
+                      Lwt.return ()
+                  | [ "RESULT"; "OPPONENT"; "SINK"; r; c ] ->
+                      let r = int_of_string r in
+                      let c = int_of_string c in
+                      personal_board.(r).(c) <- SINK;
+                      Lwt.return ()
+                  | [ "RESULT"; "OPPONENT"; "MISS"; r; c ] ->
+                      let r = int_of_string r in
+                      let c = int_of_string c in
+                      personal_board.(r).(c) <- MISS;
+                      Lwt.return ()
+                  | _ -> Lwt.return ()
+                end
             | _ -> Lwt.return ()
           in
           let%lwt () = handler in
