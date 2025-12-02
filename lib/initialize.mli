@@ -43,7 +43,7 @@ val initialize_grid : unit -> grid_state array array
 (** initializes a 10x10 grid with all EMPTY values *)
 
 val validate_ship_coordinate :
-  grid_state array array -> (int * int) list -> bool
+  grid_state array array -> (int * int) list -> string
 (** checks if the ship coordinates are valid (in bounds and not overlapping) *)
 
 val place_ship: grid_state array array -> ship -> Coord.t list -> unit

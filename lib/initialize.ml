@@ -37,13 +37,14 @@ let in_bounds (r, c) = r >= 0 && r < 10 && c >= 0 && c < 10
 let validate_ship_coordinate (grid : grid_state array array)
     (coords : (int * int) list) =
   match coords with
-  | [] -> false
+  | [] -> "No coordinate entered"
   | (r0, c0) :: _ ->
-      if not (List.for_all in_bounds coords) then false
+      if not (List.for_all in_bounds coords) then "Coordinate not in bounds"
       else
         let same_row = List.for_all (fun (r, _) -> r = r0) coords in
         let same_col = List.for_all (fun (_, c) -> c = c0) coords in
-        if not (same_row || same_col) then false
+        if not (same_row || same_col) then
+          "Coordinate must be in same line as this ship"
         else
           let sorted =
             if same_row then
@@ -57,14 +58,17 @@ let validate_ship_coordinate (grid : grid_state array array)
                 let good = if same_row then c2 = c1 + 1 else r2 = r1 + 1 in
                 good && consecutive ((r2, c2) :: rest)
           in
-          if not (consecutive sorted) then false
-          else
+          if not (consecutive sorted) then
+            "Coordinate not consecutive to this ship"
+          else if
             List.for_all
               (fun (r, c) ->
                 match grid.(r).(c) with
                 | SHIP -> false
                 | _ -> true)
               coords
+          then "Valid Coordinate"
+          else "This coordinate already has a ship"
 
 (* Creates an empty ship list ref*)
 let build_ship_list player =
@@ -76,8 +80,10 @@ let build_ship_list player =
   List.map (fun n -> { name = n; coords = CoordSet.empty }) names
 
 let place_ship board ship coords =
-  if not (validate_ship_coordinate board coords) then
-    failwith ("Invalid coordinates for ship " ^ ship.name);
+  if validate_ship_coordinate board coords <> "Valid Coordinate" then
+    failwith
+      ("Invalid coordinates for ship " ^ ship.name ^ ". "
+      ^ validate_ship_coordinate board coords);
   List.iter (fun (r, c) -> board.(r).(c) <- SHIP) coords;
   ship.coords <-
     List.fold_left (fun set xy -> CoordSet.add xy set) CoordSet.empty coords

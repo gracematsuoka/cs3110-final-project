@@ -6,7 +6,7 @@ let emoji_of_cell = function
   | SHIP -> "🚢"
   | HIT -> "💣"
   | MISS -> "❌"
-  | SINK -> "☠️"
+  | SINK -> " ☠️ "
 
 let print_two_boards board_left board_right : unit Lwt.t =
   let nrows = Array.length board_left in
@@ -362,7 +362,7 @@ let client_handler client_addr (client_in, client_out) : unit Lwt.t =
                                  Cs3110_final_project.Initialize.ship_list1_og
                                  ship_idx)
                               coords;
-                          print_board (List.nth board_list personal_idx);
+                          (* print_board (List.nth board_list personal_idx); *)
                           Lwt.return_unit))
               | [ "GUESS"; r; c ] -> (
                   match (int_of_string_opt r, int_of_string_opt c) with
@@ -461,35 +461,53 @@ let run_client () =
               | Some coord -> read_coordinates (i + 1) max (coord :: ship_lst))
       in
 
-      let%lwt ship_coords = read_coordinates 1 ship_size [] in
-      let ship_coords = List.rev ship_coords in
+      (* Helper: place THIS ship (count) with retry on failure *)
+      let rec place_this_ship () =
+        let%lwt ship_coords = read_coordinates 1 ship_size [] in
+        let ship_coords = List.rev ship_coords in
+        let personal_board = List.nth board_list personal_idx in
 
-      (* Update local board so the player can see their ships *)
-      let personal_board = List.nth board_list personal_idx in
-      if player_num = 0 then
-        Cs3110_final_project.Initialize.place_ship personal_board
-          (List.nth Cs3110_final_project.Initialize.ship_list0_og count)
-          ship_coords
-      else
-        Cs3110_final_project.Initialize.place_ship personal_board
-          (List.nth Cs3110_final_project.Initialize.ship_list1_og count)
-          ship_coords;
+        Lwt.catch
+          (fun () ->
+            (* try placing locally *)
+            if player_num = 0 then
+              Cs3110_final_project.Initialize.place_ship personal_board
+                (List.nth Cs3110_final_project.Initialize.ship_list0_og count)
+                ship_coords
+            else
+              Cs3110_final_project.Initialize.place_ship personal_board
+                (List.nth Cs3110_final_project.Initialize.ship_list1_og count)
+                ship_coords;
 
-      (* Send coordinates to server so it can mirror the same state *)
-      let coord_strings =
-        List.flatten
-          (List.map
-             (fun (r, c) -> [ string_of_int r; string_of_int c ])
-             ship_coords)
+            (* if we got here, placement succeeded; now mirror to server *)
+            let coord_strings =
+              List.flatten
+                (List.map
+                   (fun (r, c) -> [ string_of_int r; string_of_int c ])
+                   ship_coords)
+            in
+            let place_message =
+              "PLACE " ^ string_of_int count ^ " "
+              ^ String.concat " " coord_strings
+            in
+            let%lwt () = Lwt_io.write_line server_out place_message in
+            let%lwt () = Lwt_io.flush server_out in
+            Lwt.return_unit)
+          (function
+            | Failure msg ->
+                (* placement invalid: tell user and RETRY this same ship *)
+                let%lwt () = Lwt_io.printl msg in
+                place_this_ship ()
+            | exn -> Lwt.fail exn)
       in
-      let place_message =
-        "PLACE " ^ string_of_int count ^ " " ^ String.concat " " coord_strings
-      in
-      let%lwt () = Lwt_io.write_line server_out place_message in
-      let%lwt () = Lwt_io.flush server_out in
 
+      (* ensure this ship is successfully placed before moving on *)
+      let%lwt () = place_this_ship () in
+
+      (* move to next ship or finish *)
       if count + 1 < List.length ship_sizes then init_game (count + 1)
       else begin
+        let personal_board = List.nth board_list personal_idx in
         print_board personal_board;
         let%lwt () = Lwt_io.write_line server_out "BOARD_READY" in
         let%lwt () = Lwt_io.flush server_out in
@@ -563,6 +581,27 @@ let run_client () =
                     else 2
                   in
                   let personal_board = List.nth board_list personal_idx in
+                  let sink_ship_at_coord r c ship_list_og board =
+                    (* Find the ship whose original coords contain this point *)
+                    match
+                      List.find_opt
+                        (fun ship ->
+                          Cs3110_final_project.Initialize.CoordSet.mem (r, c)
+                            ship.coords)
+                        ship_list_og
+                    with
+                    | None ->
+                        Printf.printf
+                          "WARNING: sink_ship_at_coord could not find a ship \
+                           at (%d,%d)\n"
+                          r c
+                    | Some ship ->
+                        Cs3110_final_project.Initialize.CoordSet.iter
+                          (fun (sr, sc) ->
+                            board.(sr).(sc) <-
+                              Cs3110_final_project.Initialize.SINK)
+                          ship.coords
+                  in
                   match parts with
                   | [ "RESULT"; "YOU"; "HIT"; r; c ] ->
                       let r = int_of_string r in
@@ -572,7 +611,12 @@ let run_client () =
                   | [ "RESULT"; "YOU"; "SINK"; r; c ] ->
                       let r = int_of_string r in
                       let c = int_of_string c in
-                      attack_board.(r).(c) <- SINK;
+                      let opponent_og =
+                        if List.nth !client_usernames 0 = client_username then
+                          Cs3110_final_project.Initialize.ship_list1_og
+                        else Cs3110_final_project.Initialize.ship_list0_og
+                      in
+                      sink_ship_at_coord r c opponent_og attack_board;
                       Lwt.return ()
                   | [ "RESULT"; "YOU"; "MISS"; r; c ] ->
                       let r = int_of_string r in
@@ -587,7 +631,12 @@ let run_client () =
                   | [ "RESULT"; "OPPONENT"; "SINK"; r; c ] ->
                       let r = int_of_string r in
                       let c = int_of_string c in
-                      personal_board.(r).(c) <- SINK;
+                      let your_og =
+                        if List.nth !client_usernames 0 = client_username then
+                          Cs3110_final_project.Initialize.ship_list0_og
+                        else Cs3110_final_project.Initialize.ship_list1_og
+                      in
+                      sink_ship_at_coord r c your_og personal_board;
                       Lwt.return ()
                   | [ "RESULT"; "OPPONENT"; "MISS"; r; c ] ->
                       let r = int_of_string r in
