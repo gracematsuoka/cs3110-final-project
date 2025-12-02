@@ -12,13 +12,13 @@ let validate_coord (r, c) player :
       empty_ship )
   else
     let attack_board =
-      List.nth Initialize.board_list (if player = 0 then 1 else 0)
+      List.nth Initialize.board_list (if player = 0 then 1 else 3)
     in
     let ship_list_upd : Initialize.ship list =
       if player = 0 then !Initialize.ship_list1_upd
       else !Initialize.ship_list0_upd
     in
-    let state = Array.get (Array.get attack_board c) r in
+    let state = attack_board.(r).(c) in
     if state <> Initialize.EMPTY then
       ( false,
         "Enter a coordinate that has not already been entered",
@@ -41,8 +41,8 @@ let validate_coord (r, c) player :
 let update_boards (r, c) (player : int) (hit_type : Initialize.grid_state) =
   if
     hit_type <> Initialize.MISS
-    || hit_type <> Initialize.HIT
-    || hit_type <> Initialize.SINK
+    && hit_type <> Initialize.HIT
+    && hit_type <> Initialize.SINK
   then invalid_arg "update_boards: hit_type must be MISS, HIT, or SINK";
 
   let my_attack_board, other_personal_board =

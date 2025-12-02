@@ -13,7 +13,7 @@ To run + build this dune project:
 
 - Run `dune build`
 - To start the project, you must build a server and connect clients:
-  - Run `dune exec bin/main.exe server <IP Address> <Port>` to build the server (Port can be any unused port number, like `500`)
+  - Run `dune exec bin/main.exe server <IP Address> <Port>` to build the server (Port can be any unused port number, like `5000`)
   - Run `dune exec bin/main.exe client <username> <IP Address>` to connect a client with a username to a specific
     - The username can have a space AS LONG AS the whole username is wrapped around `"`
 
