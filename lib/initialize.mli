@@ -40,11 +40,10 @@ val initialize_grid : unit -> grid_state array array
 (** initializes an empty grid *)
 
 val validate_ship_coordinate :
-  (int * int) list -> bool
-(** validates that the given coordinates are within bounds and in a straight line*)
-val place_ship: grid_state array array -> ship -> (int * int) list -> unit
-(* places a ship on the board *)
+  grid_state array array -> (int * int) list -> string
+(** checks if the ship coordinates are valid (in bounds and not overlapping) *)
 
+val place_ship: grid_state array array -> ship -> Coord.t list -> unit
 val board_list : grid_state array array list
 (** list of boards board_list[0] is player0 personal board; board_list[1] is
     player0 attack board; board_list[2] is player1 personal board; board_list[3]
