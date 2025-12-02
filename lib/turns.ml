@@ -97,11 +97,11 @@ let remove_coord (r, c) (ship : Initialize.ship) :
   else (Initialize.HIT, ship.name)
 
 let%test _ =
-  let ship0 = List.nth Initialize.ship_list0_upd 0 in
+  let ship0 = List.nth !Initialize.ship_list0_upd 0 in
   remove_coord (0, 0) ship0 = (Initialize.SINK, ship0.name)
 
 let%test _ =
-  let ship0 = List.nth Initialize.ship_list0_upd 0 in
+  let ship0 = List.nth !Initialize.ship_list0_upd 0 in
   ship0.coords <- Initialize.CoordSet.add (0, 0) ship0.coords;
   ship0.coords <- Initialize.CoordSet.add (1, 0) ship0.coords;
   remove_coord (0, 0) ship0 = (Initialize.HIT, ship0.name)
@@ -126,13 +126,13 @@ let check_win (ship_coords : Initialize.ship list) : bool =
     (fun (s : Initialize.ship) -> Initialize.CoordSet.is_empty s.coords)
     ship_coords
 
-let%test _ = check_win Initialize.ship_list0_upd = false
+let%test _ = check_win !Initialize.ship_list0_upd = false
 
 let%test _ =
   List.iter
     (fun (s : Initialize.ship) -> s.coords <- Initialize.CoordSet.empty)
-    Initialize.ship_list0_upd;
-  check_win Initialize.ship_list0_upd = true
+    !Initialize.ship_list0_upd;
+  check_win !Initialize.ship_list0_upd = true
 
 let handle_turn (r, c) (player : int) =
   let other_player, ship_list_upd, ship_list_og =
