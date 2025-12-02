@@ -1,5 +1,5 @@
 ---
-group:  
+group:
   - name: Elisa Pan
     netid: ep554
   - name: Grace Matsuoka
@@ -19,9 +19,9 @@ title: "Battleship Game"
 
 git-repo: "https://github.com/gracematsuoka/cs3110-final-project.git"
 
-demo-video-url: "______________________" # Replace the URL with your own demo video.
+demo-video-url: "https://youtu.be/iylnX7IwUig"
 
-desc: > 
+desc: >
   Our project is a two-player battleship game. It supports the standard battleship
   mechanics like ship placement, turn-based attacks, hit/miss/sink detection, and
   sinking and win checking. 
@@ -30,6 +30,6 @@ desc: >
   representing the player's personal board -- holding their 5 ships and all their
   opponents attack attempts -- and the lower board representing the player's attack
   board -- showing the results of their own attack attempts.
-  
+
   The game logic is fully modular, making it easy to extend with new ship types and
   custom board sizes.
