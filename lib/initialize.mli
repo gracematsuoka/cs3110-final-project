@@ -36,11 +36,8 @@ val ship_list1_og : ship list
 (** list of 5 ships for player1, not linked to any part of ship_list0_upd and
     will not change *)
 
-val in_bounds : (int * int) -> bool
-(** checks if a coordinate is within the 10x10 grid bounds *)
-
 val initialize_grid : unit -> grid_state array array
-(** initializes a 10x10 grid with all EMPTY values *)
+(** initializes an empty grid *)
 
 val validate_ship_coordinate :
   grid_state array array -> (int * int) list -> string

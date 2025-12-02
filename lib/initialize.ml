@@ -79,6 +79,7 @@ let build_ship_list player =
   in
   List.map (fun n -> { name = n; coords = CoordSet.empty }) names
 
+(* Places a given ship (ship) on a player's board (board) with the ship's coordinates (coords) *)
 let place_ship board ship coords =
   if validate_ship_coordinate board coords <> "Valid Coordinate" then
     failwith
