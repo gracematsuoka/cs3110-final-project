@@ -34,6 +34,38 @@ let validate_coord (r, c) player :
       | None -> (true, "", Initialize.EMPTY, empty_ship)
       | Some ship -> (true, "", Initialize.SHIP, ship)
 
+let empty_ship : Initialize.ship =
+  { name = ""; coords = Initialize.CoordSet.empty }
+
+let%test _ =
+  validate_coord (10, 0) 0
+  = ( false,
+      "Coordinates are out of bounds (each input can only be from 0 to 9)",
+      Initialize.EMPTY,
+      empty_ship )
+
+let%test _ =
+  validate_coord (0, 10) 0
+  = ( false,
+      "Coordinates are out of bounds (each input can only be from 0 to 9)",
+      Initialize.EMPTY,
+      empty_ship )
+
+let%test _ =
+  let attack_board = List.nth Initialize.board_list 1 in
+  attack_board.(0).(0) <- Initialize.SHIP;
+
+  validate_coord (0, 0) 0
+  = ( false,
+      "Enter a coordinate that has not already been entered",
+      Initialize.EMPTY,
+      empty_ship )
+
+let%test _ =
+  let attack_board = List.nth Initialize.board_list 1 in
+  attack_board.(0).(0) <- Initialize.EMPTY;
+  validate_coord (0, 0) 0 = (true, "", Initialize.EMPTY, empty_ship)
+
 (** [update_boards (r,c) player hit_type] updates the attack board ot [player]
     and the personal board of the other player. For both boards, the grid_state
     at index [(r,c)] is updated to [hit_type]. Requires that [player] is 0 or 1
@@ -64,6 +96,16 @@ let remove_coord (r, c) (ship : Initialize.ship) :
   if Initialize.CoordSet.is_empty ship.coords then (Initialize.SINK, ship.name)
   else (Initialize.HIT, ship.name)
 
+let%test _ =
+  let ship0 = List.nth !Initialize.ship_list0_upd 0 in
+  remove_coord (0, 0) ship0 = (Initialize.SINK, ship0.name)
+
+let%test _ =
+  let ship0 = List.nth !Initialize.ship_list0_upd 0 in
+  ship0.coords <- Initialize.CoordSet.add (0, 0) ship0.coords;
+  ship0.coords <- Initialize.CoordSet.add (1, 0) ship0.coords;
+  remove_coord (0, 0) ship0 = (Initialize.HIT, ship0.name)
+
 (** [change_to_sink ship_name ship_list_og player] changes all HITs to SINKs for
     ship with [ship_name] in [player]'s attack board and other player's personal
     board. Throws [Not_found] if [ship_name] is not the name of a ship in
@@ -83,6 +125,14 @@ let check_win (ship_coords : Initialize.ship list) : bool =
   List.for_all
     (fun (s : Initialize.ship) -> Initialize.CoordSet.is_empty s.coords)
     ship_coords
+
+let%test _ = check_win !Initialize.ship_list0_upd = false
+
+let%test _ =
+  List.iter
+    (fun (s : Initialize.ship) -> s.coords <- Initialize.CoordSet.empty)
+    !Initialize.ship_list0_upd;
+  check_win !Initialize.ship_list0_upd = true
 
 let handle_turn (r, c) (player : int) =
   let other_player, ship_list_upd, ship_list_og =
