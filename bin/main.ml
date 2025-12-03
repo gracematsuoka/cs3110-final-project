@@ -103,6 +103,12 @@ let fatal_error msg =
   prerr_endline msg;
   exit 1
 
+(** [fatal_error_lwt msg] will print an error message [msg] with Lwt and then
+    end the execution *)
+let fatal_error_lwt msg =
+  let%lwt () = Lwt_io.eprintl msg in
+  exit 1
+
 let localhost ip port =
   try Unix.ADDR_INET (Unix.inet_addr_of_string ip, port)
   with Failure _ | Invalid_argument _ ->
@@ -201,7 +207,7 @@ let client_handler client_addr (client_in, client_out) : unit Lwt.t =
           Lwt_io.printlf "Message received from client %s (%s). %s"
             address_string client_username msg
         in
-        let guess_handler msg r c =
+        let guess_handler msg r c sunk_coords =
           let others =
             List.filter (fun oc -> oc != client_out) !client_output_channels
           in
@@ -216,6 +222,11 @@ let client_handler client_addr (client_in, client_out) : unit Lwt.t =
                 Lwt_io.write_line client_out
                   ("RESULT YOU HIT " ^ string_of_int r ^ " " ^ string_of_int c)
               in
+              let%lwt () =
+                Lwt_io.write_line other_out
+                  ("RESULT OPPONENT HIT " ^ string_of_int r ^ " "
+                 ^ string_of_int c)
+              in
               let%lwt () = Lwt_io.write_line client_out "YOUR_TURN" in
               let%lwt () = Lwt_io.flush client_out in
               let%lwt () = Lwt_io.write_line other_out "OPPONENT_TURN" in
@@ -224,16 +235,23 @@ let client_handler client_addr (client_in, client_out) : unit Lwt.t =
                   (client_username ^ " hit your ship!\n" ^ client_username
                  ^ " will go again.")
               in
-              let%lwt () =
-                Lwt_io.write_line other_out
-                  ("RESULT OPPONENT HIT " ^ string_of_int r ^ " "
-                 ^ string_of_int c)
-              in
               Lwt_io.flush other_out
           | "You sank a ship! Go again." ->
+              let sunk_coords_str =
+                String.concat " "
+                  (List.flatten
+                     (List.map
+                        (fun (r, c) -> [ string_of_int r; string_of_int c ])
+                        sunk_coords))
+              in
               let%lwt () =
                 Lwt_io.write_line client_out
-                  ("RESULT YOU SINK " ^ string_of_int r ^ " " ^ string_of_int c)
+                  ("RESULT YOU SINK " ^ sunk_coords_str)
+              in
+              let%lwt () =
+                Lwt_io.write_line other_out
+                  ("RESULT OPPONENT SINK " ^ string_of_int r ^ " "
+                 ^ string_of_int c)
               in
               let%lwt () = Lwt_io.write_line client_out "YOUR_TURN" in
               let%lwt () = Lwt_io.flush client_out in
@@ -242,23 +260,18 @@ let client_handler client_addr (client_in, client_out) : unit Lwt.t =
                   (client_username ^ " sunk your ship!\n" ^ client_username
                  ^ " will go again.")
               in
-              let%lwt () =
-                Lwt_io.write_line other_out
-                  ("RESULT OPPONENT SINK " ^ string_of_int r ^ " "
-                 ^ string_of_int c)
-              in
               Lwt_io.flush other_out
           | "Miss" ->
               let%lwt () =
                 Lwt_io.write_line other_out
                   (client_username ^ " missed. Your turn.")
               in
-              let%lwt () = Lwt_io.write_line other_out "YOUR_TURN" in
               let%lwt () =
                 Lwt_io.write_line other_out
                   ("RESULT OPPONENT MISS " ^ string_of_int r ^ " "
                  ^ string_of_int c)
               in
+              let%lwt () = Lwt_io.write_line other_out "YOUR_TURN" in
               let%lwt () = Lwt_io.flush other_out in
               let%lwt () =
                 Lwt_io.write_line client_out
@@ -284,6 +297,7 @@ let client_handler client_addr (client_in, client_out) : unit Lwt.t =
                 client_out :: !client_ready_output_channels;
 
               if !ready_counter >= 2 then begin
+                Cs3110_final_project.Initialize.set_upd_lists ();
                 (* Both players are ready. Chooses first client as starting
                    player. *)
                 match !client_output_channels with
@@ -367,12 +381,12 @@ let client_handler client_addr (client_in, client_out) : unit Lwt.t =
               | [ "GUESS"; r; c ] -> (
                   match (int_of_string_opt r, int_of_string_opt c) with
                   | Some row, Some col ->
-                      let result_msg, next_player =
+                      let result_msg, next_player, sunk_coords =
                         Cs3110_final_project.Turns.handle_turn (row, col)
                           player_num
                       in
                       let%lwt () = Lwt_io.write_line client_out result_msg in
-                      guess_handler result_msg row col
+                      guess_handler result_msg row col sunk_coords
                   | _ -> Lwt_io.printl "Invalid GUESS format: r or c not an int"
                   )
               | _ ->
@@ -449,7 +463,7 @@ let run_client () =
           in
           let%lwt coord_opt = Lwt_io.read_line_opt Lwt_io.stdin in
           match coord_opt with
-          | None -> fatal_error "Input closed. Exiting client."
+          | None -> fatal_error_lwt "Input closed. Exiting client."
           | Some message -> (
               match verify_coord message with
               | None ->
@@ -522,7 +536,7 @@ let run_client () =
       match coord_opt with
       | None ->
           (* Assuming fatal_error : string -> 'a Lwt.t *)
-          fatal_error "Input closed. Exiting client."
+          fatal_error_lwt "Input closed. Exiting client."
       | Some message -> (
           match verify_coord message with
           | Some (r, c) ->
@@ -542,7 +556,7 @@ let run_client () =
     let rec check_server () =
       let%lwt message_opt = Lwt_io.read_line_opt server_in in
       match message_opt with
-      | None -> fatal_error "\nServer disconnected."
+      | None -> fatal_error_lwt "\nServer disconnected."
       | Some msg ->
           let msg = String.trim msg in
           let%lwt () = Lwt_io.printlf "%s" msg in
@@ -608,15 +622,19 @@ let run_client () =
                       let c = int_of_string c in
                       attack_board.(r).(c) <- HIT;
                       Lwt.return ()
-                  | [ "RESULT"; "YOU"; "SINK"; r; c ] ->
-                      let r = int_of_string r in
-                      let c = int_of_string c in
-                      let opponent_og =
-                        if List.nth !client_usernames 0 = client_username then
-                          Cs3110_final_project.Initialize.ship_list1_og
-                        else Cs3110_final_project.Initialize.ship_list0_og
+                  | "RESULT" :: "YOU" :: "SINK" :: sunk_coords_str ->
+                      let rec lst_of_str acc = function
+                        | r :: c :: t ->
+                            lst_of_str
+                              ((int_of_string r, int_of_string c) :: acc)
+                              t
+                        | [] -> List.rev acc
+                        | _ -> acc
                       in
-                      sink_ship_at_coord r c opponent_og attack_board;
+                      let sunk_coords = lst_of_str [] sunk_coords_str in
+                      List.iter
+                        (fun (r, c) -> attack_board.(r).(c) <- SINK)
+                        sunk_coords;
                       Lwt.return ()
                   | [ "RESULT"; "YOU"; "MISS"; r; c ] ->
                       let r = int_of_string r in

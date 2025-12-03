@@ -111,14 +111,16 @@ let%test _ =
     board. Throws [Not_found] if [ship_name] is not the name of a ship in
     [ship_list_og]. *)
 let change_to_sink (ship_name : string) (ship_list_og : Initialize.ship list)
-    (player : int) : unit =
+    (player : int) : (int * int) list =
   let ship =
     List.find (fun (s : Initialize.ship) -> s.name = ship_name) ship_list_og
   in
   let coords = ship.coords in
-  Initialize.CoordSet.iter
+  let coords_lst = Initialize.CoordSet.elements coords in
+  List.iter
     (fun (r, c) -> update_boards (r, c) player Initialize.SINK)
-    coords
+    coords_lst;
+  coords_lst
 
 (** [check_win] checks if all coords in [ship_coords] are empty *)
 let check_win (ship_coords : Initialize.ship list) : bool =
@@ -142,19 +144,21 @@ let handle_turn (r, c) (player : int) =
     | _ -> failwith "impossible player?"
   in
   match validate_coord (r, c) player with
-  | false, error, _, _ -> (error, player)
+  | false, error, _, _ -> (error, player, [])
   | true, _, state, ship ->
       if state = Initialize.SHIP then begin
         let hit_or_sink, ship_hit_name = remove_coord (r, c) ship in
         if hit_or_sink = Initialize.HIT then begin
           update_boards (r, c) player Initialize.HIT;
-          ("Hit! Go again.", player)
+          ("Hit! Go again.", player, [])
         end
         else begin
-          change_to_sink ship_hit_name ship_list_og player;
+          let sunk_coords = change_to_sink ship_hit_name ship_list_og player in
           if check_win !ship_list_upd then
-            (Printf.sprintf "Player %s wins!" (string_of_int player), player + 3)
-          else ("You sank a ship! Go again.", player)
+            ( Printf.sprintf "Player %s wins!" (string_of_int player),
+              player + 3,
+              sunk_coords )
+          else ("You sank a ship! Go again.", player, sunk_coords)
         end
       end
-      else ("Miss", other_player)
+      else ("Miss", other_player, [])
