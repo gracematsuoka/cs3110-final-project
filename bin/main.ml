@@ -435,6 +435,7 @@ let run_server () =
 
 let run_client () =
   let client () =
+    Lwt.catch (fun () ->
     (* will be resolved when enough people joined the game *)
     let game_started_waiter, wake_game_started = Lwt.wait () in
     let board_finished_waiter, wake_board_finished = Lwt.wait () in
@@ -535,7 +536,25 @@ let run_client () =
     (**************** TURN TAKING FUNCTION ****************)
     let rec guess () =
       let%lwt () = Lwt_io.print "Your turn! Enter guess (row col): " in
-      let%lwt coord_opt = Lwt_io.read_line_opt Lwt_io.stdin in
+      let stdin_read = Lwt_io.read_line_opt Lwt_io.stdin in
+      let server_read = 
+        Lwt.catch
+          (fun () -> 
+            let%lwt _ = Lwt_io.read_line_opt server_in in
+            Lwt.return `ServerData)
+          (function
+            | End_of_file -> Lwt.fail End_of_file  
+            | exn -> Lwt.fail exn)
+      in
+      
+      let%lwt coord_opt = 
+        Lwt.pick [
+          (let%lwt input = stdin_read in Lwt.return input);
+          (let%lwt _ = server_read in 
+          fatal_error_lwt "Unexpected server message during input.")
+        ]
+      in
+      (* let%lwt coord_opt = Lwt_io.read_line_opt Lwt_io.stdin in *)
       match coord_opt with
       | None ->
           (* Assuming fatal_error : string -> 'a Lwt.t *)
@@ -678,7 +697,13 @@ let run_client () =
     let%lwt () = Lwt_io.printl "Step 1 – set up your ships!" in
     let%lwt () = init_game 0 in
     let%lwt () = board_finished_waiter in
-    check_p
+    check_p) 
+    (function 
+    | End_of_file | Unix.Unix_error _ ->
+            let%lwt () = Lwt_io.printl "\nServer disconnected. Exiting..." in
+            exit 0
+        | exn -> Lwt.fail exn
+    )
   in
   Lwt_main.run (client ())
 

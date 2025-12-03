@@ -11,3 +11,6 @@ ChatGPT 5:
     Suggest representing ships as records and using Set for coordinates
     Proofreading for bugs
     Ducumentation suggestions
+
+Claude:
+    Helped figure out how to cleanly disconnect both clients after server disconnects (using Lwt.catch)
