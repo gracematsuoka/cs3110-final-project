@@ -261,6 +261,9 @@ let client_handler client_addr (client_in, client_out) : unit Lwt.t =
                  ^ " will go again.")
               in
               Lwt_io.flush other_out
+          | "Enter a coordinate that has not already been entered" ->
+              let%lwt () = Lwt_io.write_line client_out "YOUR_TURN" in
+              Lwt_io.flush client_out
           | "Miss" ->
               let%lwt () =
                 Lwt_io.write_line other_out
