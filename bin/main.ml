@@ -103,6 +103,12 @@ let fatal_error msg =
   prerr_endline msg;
   exit 1
 
+(** [fatal_error_lwt msg] will print an error message [msg] with Lwt and then
+    end the execution *)
+let fatal_error_lwt msg =
+  let%lwt () = Lwt_io.eprintl msg in
+  exit 1
+
 let localhost ip port =
   try Unix.ADDR_INET (Unix.inet_addr_of_string ip, port)
   with Failure _ | Invalid_argument _ ->
@@ -457,7 +463,7 @@ let run_client () =
           in
           let%lwt coord_opt = Lwt_io.read_line_opt Lwt_io.stdin in
           match coord_opt with
-          | None -> fatal_error "Input closed. Exiting client."
+          | None -> fatal_error_lwt "Input closed. Exiting client."
           | Some message -> (
               match verify_coord message with
               | None ->
@@ -530,7 +536,7 @@ let run_client () =
       match coord_opt with
       | None ->
           (* Assuming fatal_error : string -> 'a Lwt.t *)
-          fatal_error "Input closed. Exiting client."
+          fatal_error_lwt "Input closed. Exiting client."
       | Some message -> (
           match verify_coord message with
           | Some (r, c) ->
@@ -550,7 +556,7 @@ let run_client () =
     let rec check_server () =
       let%lwt message_opt = Lwt_io.read_line_opt server_in in
       match message_opt with
-      | None -> fatal_error "\nServer disconnected."
+      | None -> fatal_error_lwt "\nServer disconnected."
       | Some msg ->
           let msg = String.trim msg in
           let%lwt () = Lwt_io.printlf "%s" msg in

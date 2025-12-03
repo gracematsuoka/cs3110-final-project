@@ -14,6 +14,7 @@ val handle_turn : int * int -> int -> string * int * (int * int) list
 
     Requires [player] is 0 or 1.
 
-    Returns message describing result of attack and and next player who should
-    take a turn -- 0 means player 0 goes next, 1 means player 1 goes next, 3
-    means player 0 wins, 4 means player 1 wins. *)
+    Returns message describing result of attack, next player who should take a
+    turn -- 0 means player 0 goes next, 1 means player 1 goes next, 3 means
+    player 0 wins, 4 means player 1 wins -- and a list of coordinates of a ship
+    if the ship has been sunk, else returns an empty list *)
