@@ -1,6 +1,6 @@
 (* Turns Interface *)
 
-val handle_turn : int * int -> int -> string * int
+val handle_turn : int * int -> int -> string * int * (int * int) list
 (** [handle_turn (r,c) player] processes a move where [player] attacks
     coordinate [(r,c)].
 

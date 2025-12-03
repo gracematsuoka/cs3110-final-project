@@ -79,7 +79,8 @@ let build_ship_list player =
   in
   List.map (fun n -> { name = n; coords = CoordSet.empty }) names
 
-(* Places a given ship (ship) on a player's board (board) with the ship's coordinates (coords) *)
+(* Places a given ship (ship) on a player's board (board) with the ship's
+   coordinates (coords) *)
 let place_ship board ship coords =
   if validate_ship_coordinate board coords <> "Valid Coordinate" then
     failwith
@@ -89,10 +90,18 @@ let place_ship board ship coords =
   ship.coords <-
     List.fold_left (fun set xy -> CoordSet.add xy set) CoordSet.empty coords
 
+(** [copy_ship_list] creates a deep copy of ship list [lst] *)
+let copy_ship_list lst =
+  List.map (fun ship -> { name = ship.name; coords = ship.coords }) lst
+
 let ship_list0_og = build_ship_list 0
 let ship_list1_og = build_ship_list 1
-let ship_list0_upd = ref ship_list0_og
-let ship_list1_upd = ref ship_list1_og
+let ship_list0_upd = ref (build_ship_list 0)
+let ship_list1_upd = ref (build_ship_list 1)
+
+let set_upd_lists () =
+  ship_list0_upd := copy_ship_list ship_list0_og;
+  ship_list1_upd := copy_ship_list ship_list1_og
 
 let board_list =
   [

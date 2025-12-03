@@ -43,8 +43,13 @@ val validate_ship_coordinate :
   grid_state array array -> (int * int) list -> string
 (** checks if the ship coordinates are valid (in bounds and not overlapping) *)
 
-val place_ship: grid_state array array -> ship -> Coord.t list -> unit
+val place_ship : grid_state array array -> ship -> Coord.t list -> unit
+
 val board_list : grid_state array array list
 (** list of boards board_list[0] is player0 personal board; board_list[1] is
     player0 attack board; board_list[2] is player1 personal board; board_list[3]
     is player1 attack board *)
+
+val set_upd_lists : unit -> unit
+(** [set_upd_lists] assigns the upd lists to the values of the og lists after
+    both users have set the ships in the og lists *)
