@@ -10,7 +10,10 @@ ChatGPT 5:
     Installation of GTK GUI
     Suggest representing ships as records and using Set for coordinates
     Proofreading for bugs
-    Ducumentation suggestions
+    Documentation suggestions
+    Test case suggestions
+    dune test deps for csv files
+    
 
 Claude:
     Helped figure out how to cleanly disconnect both clients after server disconnects (using Lwt.catch)
