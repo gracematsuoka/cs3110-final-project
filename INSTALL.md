@@ -14,5 +14,8 @@ To run + build this dune project:
 - Run `dune build`
 - To start the project, you must build a server and connect clients:
   - Run `dune exec bin/main.exe server <IP Address> <Port>` to build the server (Port can be any unused port number, like `5000`)
-  - Run `dune exec bin/main.exe client <IP Address> <Port> <username>` to connect a client with a username to a specific
-    - The username can have a space AS LONG AS the whole username is wrapped around `"`
+  - If you want to play a 2-player game:
+    - Run `dune exec bin/main.exe client <IP Address> <Port> <name>` to connect a client with a name to a server
+      - The username can have a space AS LONG AS the whole username is wrapped around `"`
+  - If you want to play a 1-player game:
+    - Run `dune exec bin/main.exe client <IP Address> <Port> <name> AI` to connect a client with a name to a server that will be playing against an AI player

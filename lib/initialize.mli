@@ -43,6 +43,8 @@ val validate_ship_coordinate :
   grid_state array array -> (int * int) list -> string
 (** checks if the ship coordinates are valid (in bounds and not overlapping) *)
 
+(* Places a given ship (ship) on a player's board (board) with the ship's
+   coordinates (coords) *)
 val place_ship : grid_state array array -> ship -> Coord.t list -> unit
 
 val board_list : grid_state array array list
