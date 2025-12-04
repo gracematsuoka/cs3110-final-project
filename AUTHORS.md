@@ -14,3 +14,6 @@ ChatGPT 5:
     Test case suggestions
     dune test deps for csv files
     
+
+Claude:
+    Helped figure out how to cleanly disconnect both clients after server disconnects (using Lwt.catch)
