@@ -70,7 +70,7 @@ let validate_ship_coordinate (grid : grid_state array array)
           then "Valid Coordinate"
           else "This coordinate already has a ship"
 
-(* Creates an empty ship list ref*)
+(* Creates an empty ship list ref *)
 let build_ship_list player =
   let names =
     List.map
@@ -106,7 +106,11 @@ let set_upd_lists () =
 let board_list =
   [
     initialize_grid ();
+    (* player0 personal board *)
     initialize_grid ();
+    (* player0 attack board *)
     initialize_grid ();
+    (* player1 personal board *)
     initialize_grid ();
+    (* player1 attack board *)
   ]
