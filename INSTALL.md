@@ -16,9 +16,3 @@ To run + build this dune project:
   - Run `dune exec bin/main.exe server <IP Address> <Port>` to build the server (Port can be any unused port number, like `5000`)
   - Run `dune exec bin/main.exe client <IP Address> <Port> <username>` to connect a client with a username to a specific
     - The username can have a space AS LONG AS the whole username is wrapped around `"`
-
-IGNORE THIS FOR NOW:
-For this project's GUI, we are using GTK3. To use GTK3 do the following:
-
-- Install GTK3 on your machine (C library): `brew install gtk+3`
-- Install the GTK3 OCaml package: `opam install lablgtk3`
