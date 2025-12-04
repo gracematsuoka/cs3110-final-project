@@ -102,7 +102,7 @@ let battleship_banner =
   ^ "                                 ~~~~~\n" ^ reset
 
 let you_win = win ^ "\n\n    YOU WIN\t\tദ്ദി(˵ • ᴗ • ˵ )\n\n"
-let you_lose = lose ^ "\n\n     YOU LOSE\t\t.·°՞(っ-ᯅ-ς)՞°·.\n\n"
+let you_lose = lose ^ "\n\n     YOU LOSE\t\t.·°՞(っ-ᯅ -ς)՞°·.\n\n"
 
 (**************** GLOBAL VARIABLES ****************)
 let board_list : grid_state array array list =
@@ -269,24 +269,34 @@ let client_handler client_addr (client_in, client_out) : unit Lwt.t =
               else get_next_move EMPTY (0, 0)
             in
             last_input.coord <- guess;
-            let result_msg, _, sunk_coords = handle_turn guess 1 in
+            let result_msg, next_player, sunk_coords = handle_turn guess 1 in
             let ai_r, ai_c = guess in
-            guess_handler result_msg ai_r ai_c sunk_coords 0
+            guess_handler result_msg ai_r ai_c sunk_coords next_player
           in
           match msg with
           | "Hit! Go again." ->
-              let%lwt () =
-                Lwt_io.write_line client_out
-                  ("RESULT YOU HIT " ^ string_of_int r ^ " " ^ string_of_int c)
-              in
-              if ai_mode_on then
+              if ai_mode_on then (
                 if next_player = 0 then
+                  let%lwt () =
+                    Lwt_io.write_line client_out
+                      ("RESULT YOU HIT " ^ string_of_int r ^ " "
+                     ^ string_of_int c)
+                  in
                   let%lwt () = Lwt_io.write_line client_out "YOUR_TURN" in
                   Lwt_io.flush client_out
-                else (
+                else
+                  let%lwt () =
+                    Lwt_io.write_line other_out
+                      ("RESULT OPPONENT HIT " ^ string_of_int r ^ " "
+                     ^ string_of_int c)
+                  in
                   last_input.state <- HIT;
-                  handle_ai_guess HIT)
+                  handle_ai_guess last_input.state)
               else
+                let%lwt () =
+                  Lwt_io.write_line client_out
+                    ("RESULT YOU HIT " ^ string_of_int r ^ " " ^ string_of_int c)
+                in
                 let%lwt () =
                   Lwt_io.write_line other_out
                     ("RESULT OPPONENT HIT " ^ string_of_int r ^ " "
@@ -309,16 +319,25 @@ let client_handler client_addr (client_in, client_out) : unit Lwt.t =
                         (fun (r, c) -> [ string_of_int r; string_of_int c ])
                         sunk_coords))
               in
-              let%lwt () =
-                Lwt_io.write_line client_out
-                  ("RESULT YOU SINK " ^ sunk_coords_str)
-              in
               if ai_mode_on then
                 if next_player = 0 then
+                  let%lwt () =
+                    Lwt_io.write_line client_out
+                      ("RESULT YOU SINK " ^ sunk_coords_str)
+                  in
                   let%lwt () = Lwt_io.write_line client_out "YOUR_TURN" in
                   Lwt_io.flush client_out
-                else handle_ai_guess SINK
+                else
+                  let%lwt () =
+                    Lwt_io.write_line client_out
+                      ("RESULT OPPONENT SINK " ^ sunk_coords_str)
+                  in
+                  handle_ai_guess SINK
               else
+                let%lwt () =
+                  Lwt_io.write_line client_out
+                    ("RESULT YOU SINK " ^ sunk_coords_str)
+                in
                 let%lwt () =
                   Lwt_io.write_line other_out
                     ("RESULT OPPONENT SINK " ^ string_of_int r ^ " "
@@ -333,33 +352,39 @@ let client_handler client_addr (client_in, client_out) : unit Lwt.t =
                 in
                 Lwt_io.flush other_out
           | "Enter a coordinate that has not already been entered" ->
-              if ai_mode_on && next_player = 1 then handle_ai_guess EMPTY
+              if ai_mode_on && next_player = 0 then handle_ai_guess EMPTY
               else
                 let%lwt () = Lwt_io.write_line client_out "YOUR_TURN" in
                 Lwt_io.flush client_out
           | "Miss" ->
-              let%lwt () =
-                Lwt_io.write_line client_out
-                  ("RESULT YOU MISS " ^ string_of_int r ^ " " ^ string_of_int c)
-              in
-              let%lwt () = Lwt_io.flush client_out in
               if ai_mode_on then
-                if next_player = 0 then (
-                  let%lwt () = Lwt_io.write_line client_out "OPPONENT_TURN" in
-                  let%lwt () = Lwt_io.flush client_out in
-                  let%lwt () = Lwt_unix.sleep 1.0 in
-                  last_input.state <- MISS;
-                  handle_ai_guess MISS)
-                else (
-                  last_input.state <- MISS;
+                if next_player = 0 then
                   let%lwt () =
                     Lwt_io.write_line client_out
                       ("RESULT OPPONENT MISS " ^ string_of_int r ^ " "
                      ^ string_of_int c)
                   in
                   let%lwt () = Lwt_io.write_line client_out "YOUR_TURN" in
-                  Lwt_io.flush client_out)
+                  Lwt_io.flush client_out
+                else
+                  let%lwt () =
+                    Lwt_io.write_line client_out
+                      ("RESULT YOU MISS " ^ string_of_int r ^ " "
+                     ^ string_of_int c)
+                  in
+                  let%lwt () = Lwt_io.flush client_out in
+                  let%lwt () = Lwt_io.write_line client_out "OPPONENT_TURN" in
+                  let%lwt () = Lwt_io.flush client_out in
+                  let%lwt () = Lwt_unix.sleep 1.0 in
+                  let%lwt () = handle_ai_guess last_input.state in
+                  Lwt.return_unit
               else
+                let%lwt () =
+                  Lwt_io.write_line client_out
+                    ("RESULT YOU MISS " ^ string_of_int r ^ " "
+                   ^ string_of_int c)
+                in
+                let%lwt () = Lwt_io.flush client_out in
                 let%lwt () =
                   Lwt_io.write_line other_out
                     (client_username ^ " missed. Your turn.")
