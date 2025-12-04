@@ -1,4 +1,8 @@
 open Cs3110_final_project.Initialize
+open Cs3110_final_project.Turns
+open Cs3110_final_project.Ai
+
+let ai_mode = ref false
 
 (**************** UI PRINTS ****************)
 let emoji_of_cell = function
@@ -151,10 +155,17 @@ let string_of_addr = function
 
 (** [parse_client_username] will parse the username argument of a client *)
 let parse_client_username () =
-  if Array.length Sys.argv <> 5 then fatal_error "Please enter a username.";
+  if Array.length Sys.argv < 5 then fatal_error "Please enter a username.";
   if String.starts_with ~prefix:"\"" Sys.argv.(4) then
     String.sub Sys.argv.(4) 1 (String.length Sys.argv.(4) - 2)
   else Sys.argv.(4)
+
+let is_ai_mode () =
+  if Array.length Sys.argv > 5 then
+    match Sys.argv.(5) with
+    | "AI" -> true
+    | _ -> false
+  else false
 
 (** [notify_all message output_channel] will notify all the clients [message]*)
 let notify_all message output_channel =
@@ -189,37 +200,47 @@ let client_handler client_addr (client_in, client_out) : unit Lwt.t =
   (* connecting to the client *)
   let address_string = string_of_addr client_addr in
   let%lwt client_username = Lwt_io.read_line client_in in
+  let%lwt mode = Lwt_io.read_line client_in in
   let%lwt () =
     Lwt_io.printlf "I got a connection from %s (%s)." address_string
       client_username
   in
+  let ai_mode_on = mode = "AI MODE" in
   let player_num =
-    match !client_output_channels with
-    | [] -> 0
-    | [ _ ] -> 1
-    | _ -> 1
+    if ai_mode_on then 0
+    else
+      match !client_output_channels with
+      | [] -> 0
+      | [ _ ] -> 1
+      | _ -> 1
   in
   client_usernames := client_username :: !client_usernames;
   client_output_channels := client_out :: !client_output_channels;
-
-  (**************** WAITING ROOM ****************)
-  let%lwt () = Lwt_io.fprintf client_out "You joined the game\n" in
-  let%lwt () = Lwt_io.flush client_out in
   let%lwt () =
-    Lwt_list.iter_p
-      (notify_all (client_username ^ " joined the game"))
-      (List.filter (fun oc -> oc != client_out) !client_output_channels)
-  in
-  incr counter;
-  let%lwt () =
-    let status = Printf.sprintf "Currently have %d/%d players" !counter 2 in
-    let message =
-      if !counter > 1 then status ^ "\nStarting game\n"
-      else
-        Printf.sprintf "%s\nWaiting for %d more player(s)..." status
-          (2 - !counter)
+    (**************** WAITING ROOM ****************)
+    let%lwt () = Lwt_io.fprintf client_out "You joined the game\n" in
+    let%lwt () = Lwt_io.flush client_out in
+    let%lwt () =
+      Lwt_list.iter_p
+        (notify_all (client_username ^ " joined the game"))
+        (List.filter (fun oc -> oc != client_out) !client_output_channels)
     in
-    Lwt_list.iter_p (notify_all message) !client_output_channels
+    incr counter;
+    let%lwt () =
+      let status =
+        if ai_mode_on then Printf.sprintf "Starting AI mode"
+        else Printf.sprintf "Currently have %d/%d players" !counter 2
+      in
+      let message =
+        if !counter > 1 || (!counter = 1 && ai_mode_on) then
+          status ^ "\nStarting game\n"
+        else
+          Printf.sprintf "%s\nWaiting for %d more player(s)..." status
+            (2 - !counter)
+      in
+      Lwt_list.iter_p (notify_all message) !client_output_channels
+    in
+    Lwt.return_unit
   in
   let%lwt () = Lwt_io.flush client_out in
 
@@ -233,7 +254,7 @@ let client_handler client_addr (client_in, client_out) : unit Lwt.t =
           Lwt_io.printlf "Message received from client %s (%s). %s"
             address_string client_username msg
         in
-        let guess_handler msg r c sunk_coords =
+        let rec guess_handler msg r c sunk_coords next_player =
           let others =
             List.filter (fun oc -> oc != client_out) !client_output_channels
           in
@@ -242,26 +263,44 @@ let client_handler client_addr (client_in, client_out) : unit Lwt.t =
             | [ oc ] -> oc
             | _ -> client_out
           in
+          let handle_ai_guess res =
+            let guess =
+              if res = HIT then get_next_move last_input.state last_input.coord
+              else get_next_move EMPTY (0, 0)
+            in
+            last_input.coord <- guess;
+            let result_msg, _, sunk_coords = handle_turn guess 1 in
+            let ai_r, ai_c = guess in
+            guess_handler result_msg ai_r ai_c sunk_coords 0
+          in
           match msg with
           | "Hit! Go again." ->
               let%lwt () =
                 Lwt_io.write_line client_out
                   ("RESULT YOU HIT " ^ string_of_int r ^ " " ^ string_of_int c)
               in
-              let%lwt () =
-                Lwt_io.write_line other_out
-                  ("RESULT OPPONENT HIT " ^ string_of_int r ^ " "
-                 ^ string_of_int c)
-              in
-              let%lwt () = Lwt_io.write_line client_out "YOUR_TURN" in
-              let%lwt () = Lwt_io.flush client_out in
-              let%lwt () = Lwt_io.write_line other_out "OPPONENT_TURN" in
-              let%lwt () =
-                Lwt_io.write_line other_out
-                  (client_username ^ " hit your ship! " ^ client_username
-                 ^ " will go again.")
-              in
-              Lwt_io.flush other_out
+              if ai_mode_on then
+                if next_player = 0 then
+                  let%lwt () = Lwt_io.write_line client_out "YOUR_TURN" in
+                  Lwt_io.flush client_out
+                else (
+                  last_input.state <- HIT;
+                  handle_ai_guess HIT)
+              else
+                let%lwt () =
+                  Lwt_io.write_line other_out
+                    ("RESULT OPPONENT HIT " ^ string_of_int r ^ " "
+                   ^ string_of_int c)
+                in
+                let%lwt () = Lwt_io.write_line client_out "YOUR_TURN" in
+                let%lwt () = Lwt_io.flush client_out in
+                let%lwt () = Lwt_io.write_line other_out "OPPONENT_TURN" in
+                let%lwt () =
+                  Lwt_io.write_line other_out
+                    (client_username ^ " hit your ship! " ^ client_username
+                   ^ " will go again.")
+                in
+                Lwt_io.flush other_out
           | "You sank a ship! Go again." ->
               let sunk_coords_str =
                 String.concat " "
@@ -274,40 +313,66 @@ let client_handler client_addr (client_in, client_out) : unit Lwt.t =
                 Lwt_io.write_line client_out
                   ("RESULT YOU SINK " ^ sunk_coords_str)
               in
-              let%lwt () =
-                Lwt_io.write_line other_out
-                  ("RESULT OPPONENT SINK " ^ string_of_int r ^ " "
-                 ^ string_of_int c)
-              in
-              let%lwt () = Lwt_io.write_line client_out "YOUR_TURN" in
-              let%lwt () = Lwt_io.flush client_out in
-              let%lwt () =
-                Lwt_io.write_line other_out
-                  (client_username ^ " sunk your ship!\n" ^ client_username
-                 ^ " will go again.")
-              in
-              Lwt_io.flush other_out
+              if ai_mode_on then
+                if next_player = 0 then
+                  let%lwt () = Lwt_io.write_line client_out "YOUR_TURN" in
+                  Lwt_io.flush client_out
+                else handle_ai_guess SINK
+              else
+                let%lwt () =
+                  Lwt_io.write_line other_out
+                    ("RESULT OPPONENT SINK " ^ string_of_int r ^ " "
+                   ^ string_of_int c)
+                in
+                let%lwt () = Lwt_io.write_line client_out "YOUR_TURN" in
+                let%lwt () = Lwt_io.flush client_out in
+                let%lwt () =
+                  Lwt_io.write_line other_out
+                    (client_username ^ " sunk your ship!\n" ^ client_username
+                   ^ " will go again.")
+                in
+                Lwt_io.flush other_out
           | "Enter a coordinate that has not already been entered" ->
-              let%lwt () = Lwt_io.write_line client_out "YOUR_TURN" in
-              Lwt_io.flush client_out
+              if ai_mode_on && next_player = 1 then handle_ai_guess EMPTY
+              else
+                let%lwt () = Lwt_io.write_line client_out "YOUR_TURN" in
+                Lwt_io.flush client_out
           | "Miss" ->
-              let%lwt () =
-                Lwt_io.write_line other_out
-                  (client_username ^ " missed. Your turn.")
-              in
-              let%lwt () =
-                Lwt_io.write_line other_out
-                  ("RESULT OPPONENT MISS " ^ string_of_int r ^ " "
-                 ^ string_of_int c)
-              in
-              let%lwt () = Lwt_io.write_line other_out "YOUR_TURN" in
-              let%lwt () = Lwt_io.flush other_out in
               let%lwt () =
                 Lwt_io.write_line client_out
                   ("RESULT YOU MISS " ^ string_of_int r ^ " " ^ string_of_int c)
               in
-              let%lwt () = Lwt_io.write_line client_out "OPPONENT_TURN" in
-              Lwt_io.flush client_out
+              let%lwt () = Lwt_io.flush client_out in
+              if ai_mode_on then
+                if next_player = 0 then (
+                  let%lwt () = Lwt_io.write_line client_out "OPPONENT_TURN" in
+                  let%lwt () = Lwt_io.flush client_out in
+                  let%lwt () = Lwt_unix.sleep 1.0 in
+                  last_input.state <- MISS;
+                  handle_ai_guess MISS)
+                else (
+                  last_input.state <- MISS;
+                  let%lwt () =
+                    Lwt_io.write_line client_out
+                      ("RESULT OPPONENT MISS " ^ string_of_int r ^ " "
+                     ^ string_of_int c)
+                  in
+                  let%lwt () = Lwt_io.write_line client_out "YOUR_TURN" in
+                  Lwt_io.flush client_out)
+              else
+                let%lwt () =
+                  Lwt_io.write_line other_out
+                    (client_username ^ " missed. Your turn.")
+                in
+                let%lwt () =
+                  Lwt_io.write_line other_out
+                    ("RESULT OPPONENT MISS " ^ string_of_int r ^ " "
+                   ^ string_of_int c)
+                in
+                let%lwt () = Lwt_io.write_line other_out "YOUR_TURN" in
+                let%lwt () = Lwt_io.flush other_out in
+                let%lwt () = Lwt_io.write_line client_out "OPPONENT_TURN" in
+                Lwt_io.flush client_out
           | msg when String.length msg >= 7 && String.sub msg 0 7 = "Player " ->
               let%lwt () = Lwt_io.write_line client_out "YOU WIN" in
               let%lwt () = Lwt_io.flush client_out in
@@ -323,53 +388,65 @@ let client_handler client_addr (client_in, client_out) : unit Lwt.t =
           (**************** PLAYER FINISHED SETTING SHIPS ****************)
           | "BOARD_READY" ->
               incr ready_counter;
-              let status =
-                Printf.sprintf "%d/%d players finished setup" !ready_counter 2
-              in
-              (* Track which clients have sent BOARD_READY *)
-              client_ready_output_channels :=
-                client_out :: !client_ready_output_channels;
-
-              if !ready_counter >= 2 then begin
-                Cs3110_final_project.Initialize.set_upd_lists ();
-                (* Both players are ready. Chooses first client as starting
-                   player. *)
-                match !client_output_channels with
-                | p1 :: t ->
-                    current_player := Some p1;
-                    let status_msg =
-                      status ^ steps
-                      ^ "\n\n\
-                         Step 2 ~ Try to sink all the other player's ship \
-                         first!" ^ reset
-                    in
-                    let%lwt () =
-                      Lwt_list.iter_p (notify_all status_msg)
-                        !client_output_channels
-                    in
-                    (* Notifying p1 it's their turn *)
-                    let%lwt () = Lwt_io.write_line p1 "YOUR_TURN" in
-                    let%lwt () = Lwt_io.flush p1 in
-                    (* Notifying everyone it's opponent's turn *)
-                    let%lwt () =
-                      Lwt_list.iter_p
-                        (fun p ->
-                          if p == p1 then Lwt.return_unit
-                          else
-                            let%lwt () = Lwt_io.write_line p "OPPONENT_TURN" in
-                            Lwt_io.flush p)
-                        t
-                    in
-                    Lwt.return_unit
-                | _ -> Lwt.return_unit
-              end
-              else begin
-                (* Not all players finished setting up boards *)
-                let msg =
-                  status ^ "\nWaiting for the other player to finish setup..."
+              if ai_mode_on then
+                if !ready_counter >= 1 then (
+                  Cs3110_final_project.Initialize.set_upd_lists ();
+                  let%lwt () = Lwt_io.write_line client_out "YOUR_TURN" in
+                  Lwt_io.flush client_out)
+                else
+                  Lwt_list.iter_p
+                    (notify_all "AI setup in progress...")
+                    !client_output_channels
+              else
+                let status =
+                  Printf.sprintf "%d/%d players finished setup" !ready_counter 2
                 in
-                Lwt_list.iter_p (notify_all msg) !client_ready_output_channels
-              end
+                (* Track which clients have sent BOARD_READY *)
+                client_ready_output_channels :=
+                  client_out :: !client_ready_output_channels;
+
+                if !ready_counter >= 2 then begin
+                  Cs3110_final_project.Initialize.set_upd_lists ();
+                  (* Both players are ready. Chooses first client as starting
+                     player. *)
+                  match !client_output_channels with
+                  | p1 :: t ->
+                      current_player := Some p1;
+                      let status_msg =
+                        status ^ steps
+                        ^ "\n\n\
+                           Step 2 ~ Try to sink all the other player's ship \
+                           first!" ^ reset
+                      in
+                      let%lwt () =
+                        Lwt_list.iter_p (notify_all status_msg)
+                          !client_output_channels
+                      in
+                      (* Notifying p1 it's their turn *)
+                      let%lwt () = Lwt_io.write_line p1 "YOUR_TURN" in
+                      let%lwt () = Lwt_io.flush p1 in
+                      (* Notifying everyone it's opponent's turn *)
+                      let%lwt () =
+                        Lwt_list.iter_p
+                          (fun p ->
+                            if p == p1 then Lwt.return_unit
+                            else
+                              let%lwt () =
+                                Lwt_io.write_line p "OPPONENT_TURN"
+                              in
+                              Lwt_io.flush p)
+                          t
+                      in
+                      Lwt.return_unit
+                  | _ -> Lwt.return_unit
+                end
+                else begin
+                  (* Not all players finished setting up boards *)
+                  let msg =
+                    status ^ "\nWaiting for the other player to finish setup..."
+                  in
+                  Lwt_list.iter_p (notify_all msg) !client_ready_output_channels
+                end
           | string -> (
               match String.split_on_char ' ' string with
               | "PLACE" :: ship_idx_str :: coord_strs -> (
@@ -421,7 +498,7 @@ let client_handler client_addr (client_in, client_out) : unit Lwt.t =
                           player_num
                       in
                       let%lwt () = Lwt_io.write_line client_out result_msg in
-                      guess_handler result_msg row col sunk_coords
+                      guess_handler result_msg row col sunk_coords next_player
                   | _ -> Lwt_io.printl "Invalid GUESS format: r or c not an int"
                   )
               | _ ->
@@ -479,6 +556,8 @@ let run_client () =
         let%lwt () = Lwt_io.printlf "%s" battleship_banner in
         let%lwt server_in, server_out = Lwt_io.open_connection connect_port in
         let%lwt () = Lwt_io.write_line server_out client_username in
+        let mode = if is_ai_mode () then "AI MODE" else "REG MODE" in
+        let%lwt () = Lwt_io.write_line server_out mode in
         let%lwt () = Lwt_io.flush server_out in
 
         (**************** INITIALIZE GAME FUNCTION ****************)
@@ -575,27 +654,15 @@ let run_client () =
         (**************** TURN TAKING FUNCTION ****************)
         let rec guess () =
           let%lwt () = Lwt_io.print "Your turn! Enter guess (row col): " in
-          let stdin_read = Lwt_io.read_line_opt Lwt_io.stdin in
-          let server_read =
-            Lwt.catch
-              (fun () ->
-                let%lwt _ = Lwt_io.read_line_opt server_in in
-                Lwt.return `ServerData)
-              (function
-                | End_of_file -> Lwt.fail End_of_file
-                | exn -> Lwt.fail exn)
-          in
+          (* let stdin_read = Lwt_io.read_line_opt Lwt_io.stdin in let
+             server_read = Lwt.catch (fun () -> let%lwt _ = Lwt_io.read_line_opt
+             server_in in Lwt.return `ServerData) (function | End_of_file ->
+             Lwt.fail End_of_file | exn -> Lwt.fail exn) in
 
-          let%lwt coord_opt =
-            Lwt.pick
-              [
-                (let%lwt input = stdin_read in
-                 Lwt.return input);
-                (let%lwt _ = server_read in
-                 fatal_error_lwt "\nServer disconnected.");
-              ]
-          in
-          (* let%lwt coord_opt = Lwt_io.read_line_opt Lwt_io.stdin in *)
+             let%lwt coord_opt = Lwt.pick [ (let%lwt input = stdin_read in
+             Lwt.return input); (let%lwt _ = server_read in fatal_error_lwt
+             "\nServer disconnected."); ] in *)
+          let%lwt coord_opt = Lwt_io.read_line_opt Lwt_io.stdin in
           match coord_opt with
           | None ->
               (* Assuming fatal_error : string -> 'a Lwt.t *)
@@ -776,6 +843,10 @@ let run_client () =
           Lwt_io.printl (steps ^ "Step 1 ~ place your ships!" ^ reset)
         in
         let%lwt () = init_game 0 in
+        if mode = "AI MODE" then (
+          ai_mode := true;
+          make_ships)
+        else ();
         let%lwt () = board_finished_waiter in
         check_p)
       (function

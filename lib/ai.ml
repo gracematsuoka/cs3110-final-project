@@ -1,5 +1,12 @@
 open Initialize
+(* AI is player1 *)
 
+type input = {
+  mutable state : Initialize.grid_state;
+  mutable coord : int * int;
+}
+
+let last_input = { state = EMPTY; coord = (0, 0) }
 let personal_board = List.nth board_list 2
 
 (** [has_invalid_coords] checks if any coord in [coords] is already in

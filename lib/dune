@@ -1,8 +1,7 @@
 (library
  (name cs3110_final_project)
- (modules initialize turns)
+ (modules initialize turns ai)
  (libraries batteries)
  (inline_tests)
  (preprocess
-  (pps ppx_inline_test bisect_ppx))
-  )
+  (pps ppx_inline_test bisect_ppx)))
