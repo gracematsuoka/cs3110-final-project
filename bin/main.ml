@@ -60,7 +60,7 @@ let print_two_boards board_left board_right : unit Lwt.t =
       in
       let%lwt () = print_right 0 in
 
-      let%lwt () = Lwt_io.print "\n" in
+      let%lwt () = Lwt_io.print ("  " ^ string_of_int i ^ "\n") in
       print_rows (i + 1)
   in
   let%lwt () = print_rows 0 in
@@ -110,9 +110,9 @@ let board_list : grid_state array array list =
 
 let counter = ref 0
 let client_output_channels : Lwt_io.output_channel list ref = ref []
-let ship_sizes = [ 5; 4; 3; 3; 2 ]
+(* let ship_sizes = [ 5; 4; 3; 3; 2 ] *)
 
-(* let ship_sizes = [ 1; 2; 3 ] *)
+let ship_sizes = [ 1; 2; 3 ]
 let client_usernames : string list ref = ref []
 let ready_counter = ref 0
 let client_ready_output_channels : Lwt_io.output_channel list ref = ref []
@@ -358,10 +358,8 @@ let client_handler client_addr (client_in, client_out) : unit Lwt.t =
                 Lwt_io.flush client_out
           | "Coordinates are out of bounds (each input can only be from 0 to 9)"
             ->
-              if ai_mode_on && next_player = 0 then handle_ai_guess EMPTY
-              else
-                let%lwt () = Lwt_io.write_line client_out "YOUR_TURN" in
-                Lwt_io.flush client_out
+              let%lwt () = Lwt_io.write_line client_out "YOUR_TURN" in
+              Lwt_io.flush client_out
           | "Miss" ->
               if ai_mode_on then
                 if next_player = 0 then
@@ -532,13 +530,18 @@ let client_handler client_addr (client_in, client_out) : unit Lwt.t =
                       guess_handler result_msg row col sunk_coords next_player
                   | _ -> Lwt_io.printl "Invalid GUESS format: r or c not an int"
                   )
-              | _ ->
-                  (* Existing chat logic *)
-                  Lwt_list.iter_p
-                    (notify_all (client_username ^ " says: " ^ msg))
-                    (List.filter
-                       (fun oc -> oc != client_out)
-                       !client_output_channels))
+              | string_lst -> (
+                  match List.nth string_lst 0 with
+                  | "END_GAME" ->
+                      Lwt_list.iter_p (notify_all "END_GAME")
+                        !client_output_channels
+                  | _ ->
+                      (* Existing chat logic *)
+                      Lwt_list.iter_p
+                        (notify_all (client_username ^ " says: " ^ msg))
+                        (List.filter
+                           (fun oc -> oc != client_out)
+                           !client_output_channels)))
         in
         let%lwt () = handler in
         receive_message ())
@@ -556,8 +559,11 @@ let client_handler client_addr (client_in, client_out) : unit Lwt.t =
               Lwt_list.iter_p (notify_all "END_GAME") !client_output_channels
             in
             reset_game ();
-            Lwt_io.printlf "Client %s (%s) disconnected." address_string
-              client_username
+            let%lwt () =
+              Lwt_io.printlf "Client %s (%s) disconnected." address_string
+                client_username
+            in
+            fatal_error_lwt "Game ended. Disconnecting server..."
         | exn -> fatal_error ("Error: " ^ Printexc.to_string exn))
   in
   receive_message ()
@@ -688,14 +694,6 @@ let run_client () =
         (**************** TURN TAKING FUNCTION ****************)
         let rec guess () =
           let%lwt () = Lwt_io.print "Your turn! Enter guess (row col): " in
-          (* let stdin_read = Lwt_io.read_line_opt Lwt_io.stdin in let
-             server_read = Lwt.catch (fun () -> let%lwt _ = Lwt_io.read_line_opt
-             server_in in Lwt.return `ServerData) (function | End_of_file ->
-             Lwt.fail End_of_file | exn -> Lwt.fail exn) in
-
-             let%lwt coord_opt = Lwt.pick [ (let%lwt input = stdin_read in
-             Lwt.return input); (let%lwt _ = server_read in fatal_error_lwt
-             "\nServer disconnected."); ] in *)
           let%lwt coord_opt = Lwt_io.read_line_opt Lwt_io.stdin in
           match coord_opt with
           | None ->
@@ -837,10 +835,12 @@ let run_client () =
                     Lwt.return_unit
                 | "YOU WIN" ->
                     let%lwt () = Lwt_io.printlf "%s%s" you_win reset in
-                    Lwt.return_unit
+                    let%lwt () = Lwt_io.write_line server_out "END_GAME" in
+                    Lwt_io.flush server_out
                 | "YOU LOSE" ->
                     let%lwt () = Lwt_io.printlf "%s%s" you_lose reset in
-                    Lwt.return_unit
+                    let%lwt () = Lwt_io.write_line server_out "END_GAME" in
+                    Lwt_io.flush server_out
                 | msg ->
                     (* Default: only print messages that are NOT protocol
                        commands *)
