@@ -110,9 +110,9 @@ let board_list : grid_state array array list =
 
 let counter = ref 0
 let client_output_channels : Lwt_io.output_channel list ref = ref []
+let ship_sizes = [ 5; 4; 4; 3; 2; 2 ]
 
-(* let ship_sizes = [ 5; 4; 4; 3; 2; 2 ] *)
-let ship_sizes = [ 1; 2; 3 ]
+(* let ship_sizes = [ 1; 2; 3 ] *)
 let client_usernames : string list ref = ref []
 let ready_counter = ref 0
 let client_ready_output_channels : Lwt_io.output_channel list ref = ref []
@@ -591,11 +591,14 @@ let run_client () =
         in
         let rec init_game count =
           let personal_idx = if player_num = 0 then 0 else 2 in
+          let ship_size = List.nth ship_sizes count in
           let%lwt () =
             if count <> 0 then print_board (List.nth board_list personal_idx);
-            Lwt_io.print ("Add ship " ^ string_of_int (count + 1) ^ "\n")
+            Lwt_io.print
+              ("Add ship "
+              ^ string_of_int (count + 1)
+              ^ " of size " ^ string_of_int ship_size ^ "\n")
           in
-          let ship_size = List.nth ship_sizes count in
 
           (* Read all ship coordinates from user *)
           let rec read_coordinates i max ship_lst =
@@ -679,26 +682,14 @@ let run_client () =
         (**************** TURN TAKING FUNCTION ****************)
         let rec guess () =
           let%lwt () = Lwt_io.print "Your turn! Enter guess (row col): " in
-          let stdin_read = Lwt_io.read_line_opt Lwt_io.stdin in
-          let server_read =
-            Lwt.catch
-              (fun () ->
-                let%lwt _ = Lwt_io.read_line_opt server_in in
-                Lwt.return `ServerData)
-              (function
-                | End_of_file -> Lwt.fail End_of_file
-                | exn -> Lwt.fail exn)
-          in
+          (* let stdin_read = Lwt_io.read_line_opt Lwt_io.stdin in let
+             server_read = Lwt.catch (fun () -> let%lwt _ = Lwt_io.read_line_opt
+             server_in in Lwt.return `ServerData) (function | End_of_file ->
+             Lwt.fail End_of_file | exn -> Lwt.fail exn) in
 
-          let%lwt coord_opt =
-            Lwt.pick
-              [
-                (let%lwt input = stdin_read in
-                 Lwt.return input);
-                (let%lwt _ = server_read in
-                 fatal_error_lwt "\nServer disconnected.");
-              ]
-          in
+             let%lwt coord_opt = Lwt.pick [ (let%lwt input = stdin_read in
+             Lwt.return input); (let%lwt _ = server_read in fatal_error_lwt
+             "\nServer disconnected."); ] in *)
           let%lwt coord_opt = Lwt_io.read_line_opt Lwt_io.stdin in
           match coord_opt with
           | None ->
