@@ -110,9 +110,7 @@ let board_list : grid_state array array list =
 
 let counter = ref 0
 let client_output_channels : Lwt_io.output_channel list ref = ref []
-(* let ship_sizes = [ 5; 4; 3; 3; 2 ] *)
-
-let ship_sizes = [ 1; 2; 3 ]
+let ship_sizes = [ 5; 4; 3; 3; 2 ]
 let client_usernames : string list ref = ref []
 let ready_counter = ref 0
 let client_ready_output_channels : Lwt_io.output_channel list ref = ref []
