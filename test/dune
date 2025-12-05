@@ -7,3 +7,15 @@
    (:ships1 ../data/ships1.csv)
  )
 )
+
+(test
+ (name test_ai)
+ (modules test_ai)
+ (libraries cs3110_final_project ounit2)
+ (preprocess (pps bisect_ppx)))
+
+(test
+ (name test_initialize)
+ (modules test_initialize)
+ (libraries cs3110_final_project ounit2)
+ (preprocess (pps bisect_ppx)))

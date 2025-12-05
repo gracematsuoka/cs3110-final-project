@@ -1,3 +1,5 @@
+[@@@coverage exclude_file]
+
 open OUnit2
 open Batteries
 open Cs3110_final_project.Turns
