@@ -14,6 +14,7 @@ ChatGPT 5:
     Test case suggestions
     test/dune deps for csv files
     Explaining some Bisect usage
+    Server and Client connection/networking suggestions
     
 
 Claude:
