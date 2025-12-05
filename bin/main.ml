@@ -679,14 +679,26 @@ let run_client () =
         (**************** TURN TAKING FUNCTION ****************)
         let rec guess () =
           let%lwt () = Lwt_io.print "Your turn! Enter guess (row col): " in
-          (* let stdin_read = Lwt_io.read_line_opt Lwt_io.stdin in let
-             server_read = Lwt.catch (fun () -> let%lwt _ = Lwt_io.read_line_opt
-             server_in in Lwt.return `ServerData) (function | End_of_file ->
-             Lwt.fail End_of_file | exn -> Lwt.fail exn) in
+          let stdin_read = Lwt_io.read_line_opt Lwt_io.stdin in
+          let server_read =
+            Lwt.catch
+              (fun () ->
+                let%lwt _ = Lwt_io.read_line_opt server_in in
+                Lwt.return `ServerData)
+              (function
+                | End_of_file -> Lwt.fail End_of_file
+                | exn -> Lwt.fail exn)
+          in
 
-             let%lwt coord_opt = Lwt.pick [ (let%lwt input = stdin_read in
-             Lwt.return input); (let%lwt _ = server_read in fatal_error_lwt
-             "\nServer disconnected."); ] in *)
+          let%lwt coord_opt =
+            Lwt.pick
+              [
+                (let%lwt input = stdin_read in
+                 Lwt.return input);
+                (let%lwt _ = server_read in
+                 fatal_error_lwt "\nServer disconnected.");
+              ]
+          in
           let%lwt coord_opt = Lwt_io.read_line_opt Lwt_io.stdin in
           match coord_opt with
           | None ->
@@ -827,7 +839,7 @@ let run_client () =
                     in
                     Lwt.return_unit
                 | "YOU WIN" ->
-                    let%lwt () = Lwt_io.printlf "%s%s" you_lose reset in
+                    let%lwt () = Lwt_io.printlf "%s%s" you_win reset in
                     Lwt.return_unit
                 | "YOU LOSE" ->
                     let%lwt () = Lwt_io.printlf "%s%s" you_lose reset in
@@ -836,14 +848,7 @@ let run_client () =
                     (* Default: only print messages that are NOT protocol
                        commands *)
                     let no_print_messages =
-                      [
-                        "BOARD_READY";
-                        "PLACE";
-                        "GUESS";
-                        "RESULT";
-                        "Player 0 wins!";
-                        "Player 1 wins!";
-                      ]
+                      [ "BOARD_READY"; "PLACE"; "GUESS"; "RESULT"; "Player" ]
                     in
                     let first_word =
                       match String.split_on_char ' ' msg with
