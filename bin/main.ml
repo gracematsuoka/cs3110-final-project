@@ -679,14 +679,26 @@ let run_client () =
         (**************** TURN TAKING FUNCTION ****************)
         let rec guess () =
           let%lwt () = Lwt_io.print "Your turn! Enter guess (row col): " in
-          (* let stdin_read = Lwt_io.read_line_opt Lwt_io.stdin in let
-             server_read = Lwt.catch (fun () -> let%lwt _ = Lwt_io.read_line_opt
-             server_in in Lwt.return `ServerData) (function | End_of_file ->
-             Lwt.fail End_of_file | exn -> Lwt.fail exn) in
+          let stdin_read = Lwt_io.read_line_opt Lwt_io.stdin in
+          let server_read =
+            Lwt.catch
+              (fun () ->
+                let%lwt _ = Lwt_io.read_line_opt server_in in
+                Lwt.return `ServerData)
+              (function
+                | End_of_file -> Lwt.fail End_of_file
+                | exn -> Lwt.fail exn)
+          in
 
-             let%lwt coord_opt = Lwt.pick [ (let%lwt input = stdin_read in
-             Lwt.return input); (let%lwt _ = server_read in fatal_error_lwt
-             "\nServer disconnected."); ] in *)
+          let%lwt coord_opt =
+            Lwt.pick
+              [
+                (let%lwt input = stdin_read in
+                 Lwt.return input);
+                (let%lwt _ = server_read in
+                 fatal_error_lwt "\nServer disconnected.");
+              ]
+          in
           let%lwt coord_opt = Lwt_io.read_line_opt Lwt_io.stdin in
           match coord_opt with
           | None ->
