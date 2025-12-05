@@ -1,3 +1,5 @@
+[@@@coverage exclude_file]
+
 open OUnit2
 open Cs3110_final_project.Initialize
 
@@ -122,6 +124,9 @@ let test_ship_list_names_and_lengths _ =
   assert_equal [ "0a"; "0b"; "0c"; "0d"; "0e" ] names0;
   assert_equal [ "1a"; "1b"; "1c"; "1d"; "1e" ] names1
 
+let test_no_coord_entered _ =
+  let result = validate_ship_coordinate (fresh_board ()) [] in
+  assert_equal "No coordinate entered" result
 let test_ship_lists_initial_coords_empty _ =
   reset_state ();
   let all_empty ships =
@@ -172,6 +177,7 @@ let tests =
     "ship_lists_initial_coords_empty" >:: test_ship_lists_initial_coords_empty;
     "set_upd_lists_independent" >:: test_set_upd_lists_makes_independent_copies;
     "board_list_boards_independent" >:: test_board_list_boards_independent;
+    "no_coord_entered" >:: test_no_coord_entered;
   ]
 
 let test_suite = "initialize test suite" >::: tests

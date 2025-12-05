@@ -12,7 +12,8 @@ ChatGPT 5:
     Proofreading for bugs
     Documentation suggestions
     Test case suggestions
-    dune test deps for csv files
+    test/dune deps for csv files
+    Explaining some Bisect usage
     
 
 Claude:
