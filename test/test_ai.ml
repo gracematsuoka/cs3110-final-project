@@ -62,6 +62,45 @@ let test_get_next_move_miss_random _ =
   assert_bool "" !seen_different;
   assert_bool "" (CoordSet.cardinal !seen_positions > 1)
 
+let test_get_next_move_hit_bottom_right_corner _ =
+  let prev = (9, 9) in
+  let saw_left = ref false in
+  let saw_up = ref false in
+  for _ = 1 to 200 do
+    let next = get_next_move HIT prev in
+    assert_bool "" (in_bounds next);
+    if next = (9, 8) then saw_left := true;
+    if next = (8, 9) then saw_up := true
+  done;
+  assert_bool "" !saw_left;
+  assert_bool "" !saw_up
+
+let test_get_next_move_hit_top_left_corner _ =
+  let prev = (0, 0) in
+  let saw_right = ref false in
+  let saw_down = ref false in
+  for _ = 1 to 200 do
+    let next = get_next_move HIT prev in
+    assert_bool "" (in_bounds next);
+    if next = (0, 1) then saw_right := true;
+    if next = (1, 0) then saw_down := true
+  done;
+  assert_bool "" !saw_right;
+  assert_bool "" !saw_down
+
+let test_get_next_move_hit_left_edge _ =
+  let prev = (4, 0) in
+  let saw_right = ref false in
+  let saw_down = ref false in
+  for _ = 1 to 200 do
+    let next = get_next_move HIT prev in
+    assert_bool "" (in_bounds next);
+    if next = (4, 1) then saw_right := true;
+    if next = (5, 0) then saw_down := true
+  done;
+  assert_bool "" !saw_right;
+  assert_bool "" !saw_down
+
 let test_make_ships_does_not_crash _ =
   ignore make_ships
 
@@ -74,6 +113,9 @@ let suite =
       "get_next_move_hit_up_and_right" >:: test_get_next_move_hit_up_and_right;
       "get_next_move_miss_random" >:: test_get_next_move_miss_random;
       "make_ships_does_not_crash" >:: test_make_ships_does_not_crash;
+      "get_next_move_hit_bottom_right_corner" >:: test_get_next_move_hit_bottom_right_corner;
+      "get_next_move_hit_top_left_corner" >:: test_get_next_move_hit_top_left_corner;
+      "get_next_move_hit_left_edge" >:: test_get_next_move_hit_left_edge;
     ]
 
 let () = run_test_tt_main suite
