@@ -356,6 +356,12 @@ let client_handler client_addr (client_in, client_out) : unit Lwt.t =
               else
                 let%lwt () = Lwt_io.write_line client_out "YOUR_TURN" in
                 Lwt_io.flush client_out
+          | "Coordinates are out of bounds (each input can only be from 0 to 9)"
+            ->
+              if ai_mode_on && next_player = 0 then handle_ai_guess EMPTY
+              else
+                let%lwt () = Lwt_io.write_line client_out "YOUR_TURN" in
+                Lwt_io.flush client_out
           | "Miss" ->
               if ai_mode_on then
                 if next_player = 0 then
