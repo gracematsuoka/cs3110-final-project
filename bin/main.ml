@@ -827,7 +827,7 @@ let run_client () =
                     in
                     Lwt.return_unit
                 | "YOU WIN" ->
-                    let%lwt () = Lwt_io.printlf "%s%s" you_lose reset in
+                    let%lwt () = Lwt_io.printlf "%s%s" you_win reset in
                     Lwt.return_unit
                 | "YOU LOSE" ->
                     let%lwt () = Lwt_io.printlf "%s%s" you_lose reset in
@@ -836,14 +836,7 @@ let run_client () =
                     (* Default: only print messages that are NOT protocol
                        commands *)
                     let no_print_messages =
-                      [
-                        "BOARD_READY";
-                        "PLACE";
-                        "GUESS";
-                        "RESULT";
-                        "Player 0 wins!";
-                        "Player 1 wins!";
-                      ]
+                      [ "BOARD_READY"; "PLACE"; "GUESS"; "RESULT"; "Player" ]
                     in
                     let first_word =
                       match String.split_on_char ' ' msg with
